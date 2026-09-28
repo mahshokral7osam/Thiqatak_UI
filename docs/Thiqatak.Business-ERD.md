@@ -8,7 +8,7 @@ The model deliberately represents business state, auditability, and integrations
 
 - Every funder is associated one-to-one with an ABP tenant through `Funder.TenantId` (unique and required), but ABP tables are intentionally outside this business ERD.
 - Funder users, financed-vehicle quotes, contracts, policies, renewals, and funder configuration are tenant-owned and implement `IMultiTenant`.
-- Insurers, insurance products, vehicle reference data, medical provider reference data, and integration-provider definitions are host-owned shared records.
+- Insurers are host-owned shared records containing only the displayed name and avatar. Product catalogs, vehicle lookups, medical networks, and integration configuration remain external.
 - Retail customers and SME organizations are parties/business accounts, not ABP tenants. Their rows normally have `TenantId = null`.
 - A person or organization is represented once as a `Party`; product-specific aggregates reference that party instead of duplicating identity, contact, address, or bank data.
 - Quotes and issued policies store immutable pricing and business snapshots. Later catalog or pricing-rule changes must not rewrite historical offers.
@@ -16,6 +16,7 @@ The model deliberately represents business state, auditability, and integrations
 - Application notifications use ABP/infrastructure services and are not modeled as business entities.
 - Consent checkboxes remain part of the UI flow, but consent persistence is outside the current scope and has no dedicated business entity for now.
 - Insurance flows use the `InsuranceType` enum (`Motor`, `Medical`, `LeasedVehicle`) instead of product catalog entities. Insurer-specific offers and product codes come from the external API.
+- External catalogs, medical networks, insurer product details, and integration monitoring stay in their source systems. The business database stores only the submitted request and immutable external response snapshots needed to complete a transaction.
 - Organization users, roles, and permissions are managed by ABP Identity. `OrganizationPartyId` is stored as an ABP user extra property or claim. One user belongs to one business organization in the current scope.
 - `IdentityUserId` denotes a reference to an external ABP Identity user. `TenantId` denotes a reference to an external ABP tenant and appears only on business entities that can be tenant-owned.
 
@@ -114,42 +115,16 @@ erDiagram
 erDiagram
     direction LR
     INSURERS ||--o{ QUOTE_OFFERS : provides
-    QUOTE_REQUESTS ||--|{ QUOTE_RISK_ITEMS : contains
     QUOTE_REQUESTS ||--o{ QUOTE_OFFERS : receives
-    QUOTE_OFFERS ||--|{ QUOTE_OFFER_LINES : itemizes
     QUOTE_OFFERS ||--o{ QUOTE_OFFER_COVERAGES : includes
-    COVERAGE_DEFINITIONS ||--o{ QUOTE_OFFER_COVERAGES : describes
     QUOTE_OFFERS ||--o{ QUOTE_OFFER_ADDONS : includes
-    ADDON_DEFINITIONS ||--o{ QUOTE_OFFER_ADDONS : describes
-    QUOTE_REQUESTS ||--o| QUOTE_SELECTIONS : selects
-    QUOTE_OFFERS ||--o| QUOTE_SELECTIONS : chosen_offer
-    QUOTE_SELECTIONS ||--o| QUOTE_SIGNATURES : signed_by_customer
+    QUOTE_REQUESTS ||--o| QUOTE_SIGNATURES : signed_by_customer
     QUOTE_REQUESTS ||--o{ QUOTE_STATUS_HISTORY : transitions
-    QUOTE_REQUESTS ||--o{ PRICING_SNAPSHOTS : freezes
 
     INSURERS {
         uuid Id PK
-        string Code UK
-        string ArabicName
-        string EnglishName
-        decimal Rating
-        string Status
-    }
-    COVERAGE_DEFINITIONS {
-        uuid Id PK
-        string InsuranceType "Motor Medical LeasedVehicle"
-        string Code
         string Name
-        string ValueType
-        bool IsMandatory
-    }
-    ADDON_DEFINITIONS {
-        uuid Id PK
-        string InsuranceType "Motor Medical LeasedVehicle"
-        string Code
-        string Name
-        string PricingMode
-        bool IsActive
+        string AvatarUrl
     }
     QUOTE_REQUESTS {
         uuid Id PK
@@ -158,18 +133,14 @@ erDiagram
         string InsuranceType "Motor Medical LeasedVehicle"
         uuid RequesterPartyId FK
         uuid CustomerPartyId FK
+        uuid SelectedOfferId FK "nullable until customer selects"
         string Channel "Public SME Funder Operations"
         string Status
+        uuid SelectedByIdentityUserId "external ABP Identity user reference; nullable"
+        datetime SelectedAt
+        json SubmittedSnapshot
         datetime CreatedAt
         datetime ValidUntil
-    }
-    QUOTE_RISK_ITEMS {
-        uuid Id PK
-        uuid QuoteRequestId FK
-        string RiskType "Vehicle Person Group"
-        uuid RiskReferenceId
-        decimal DeclaredValue
-        json SubmittedSnapshot
     }
     QUOTE_OFFERS {
         uuid Id PK
@@ -184,39 +155,25 @@ erDiagram
         string DeclineReason
         json InsurerResponseSnapshot
     }
-    QUOTE_OFFER_LINES {
-        uuid Id PK
-        uuid QuoteOfferId FK
-        string LineType "Premium Discount Tax Fee Commission"
-        string Code
-        decimal Amount
-        decimal Rate
-    }
     QUOTE_OFFER_COVERAGES {
         uuid Id PK
         uuid QuoteOfferId FK
-        uuid CoverageDefinitionId FK
+        string ExternalCode
+        string Name
         string LimitValue
         bool IsIncluded
     }
     QUOTE_OFFER_ADDONS {
         uuid Id PK
         uuid QuoteOfferId FK
-        uuid AddonDefinitionId FK
+        string ExternalCode
+        string Name
         decimal Price
         bool IsSelected
     }
-    QUOTE_SELECTIONS {
-        uuid Id PK
-        uuid QuoteRequestId FK, UK
-        uuid QuoteOfferId FK
-        string SelectionRule "CustomerChoice or LowestPreNcd"
-        uuid SelectedByIdentityUserId "external ABP Identity user reference"
-        datetime SelectedAt
-    }
     QUOTE_SIGNATURES {
         uuid Id PK
-        uuid QuoteSelectionId FK, UK
+        uuid QuoteRequestId FK, UK
         uuid SignerPartyId FK
         string Method "OTP Digital Manual"
         string DocumentId
@@ -232,15 +189,6 @@ erDiagram
         uuid ChangedByIdentityUserId "external ABP Identity user reference"
         datetime ChangedAt
     }
-    PRICING_SNAPSHOTS {
-        uuid Id PK
-        uuid QuoteRequestId FK
-        string RulesVersion
-        string CatalogVersion
-        json InputSnapshot
-        json ResultSnapshot
-        datetime CreatedAt
-    }
 ```
 
 ## 3. Policies, billing, documents, and claims
@@ -248,11 +196,10 @@ erDiagram
 ```mermaid
 erDiagram
     direction LR
-    QUOTE_SELECTIONS ||--o| POLICIES : issues
+    QUOTE_REQUESTS ||--o| POLICIES : issues
     INSURERS ||--o{ POLICIES : underwrites
     POLICIES ||--|{ POLICY_PARTIES : assigns_roles
     PARTIES ||--o{ POLICY_PARTIES : participates
-    POLICIES ||--o{ POLICY_ASSETS : covers
     POLICIES ||--o{ POLICY_COVERAGES : contains
     POLICIES ||--o{ POLICY_ADDONS : contains
     POLICIES ||--o{ POLICY_DOCUMENTS : produces
@@ -260,11 +207,9 @@ erDiagram
     POLICIES ||--o{ POLICY_ENDORSEMENTS : amended_by
     POLICY_ENDORSEMENTS ||--o{ ENDORSEMENT_LINES : itemizes
     POLICIES ||--o{ INVOICES : billed_by
-    INVOICES ||--|{ INVOICE_LINES : itemizes
     INVOICES ||--o{ INSTALLMENTS : schedules
-    INVOICES }o--o{ PAYMENTS : settled_by
+    INVOICES ||--o{ PAYMENTS : settled_by
     PAYMENTS ||--o{ PAYMENT_ATTEMPTS : attempts
-    INVOICES ||--o{ CREDIT_NOTES : credits
     PAYMENTS ||--o{ REFUNDS : refunds
     POLICIES ||--o{ CLAIMS : receives
     CLAIMS ||--o{ CLAIM_DOCUMENTS : has
@@ -276,7 +221,7 @@ erDiagram
         string PolicyNumber UK
         string InsuranceType "Motor Medical LeasedVehicle"
         uuid InsurerId FK
-        uuid QuoteSelectionId FK
+        uuid QuoteRequestId FK
         string Status
         date EffectiveFrom
         date EffectiveTo
@@ -293,18 +238,11 @@ erDiagram
         datetime EffectiveFrom
         datetime EffectiveTo
     }
-    POLICY_ASSETS {
-        uuid Id PK
-        uuid PolicyId FK
-        string AssetType "Vehicle MedicalGroup"
-        uuid AssetReferenceId
-        decimal SumInsured
-        string Status
-    }
     POLICY_COVERAGES {
         uuid Id PK
         uuid PolicyId FK
-        uuid CoverageDefinitionId FK
+        string ExternalCode
+        string Name
         decimal Premium
         string LimitValue
         string DeductibleValue
@@ -312,7 +250,8 @@ erDiagram
     POLICY_ADDONS {
         uuid Id PK
         uuid PolicyId FK
-        uuid AddonDefinitionId FK
+        string ExternalCode
+        string Name
         uuid EndorsementId FK "nullable"
         decimal Premium
         datetime EffectiveFrom
@@ -361,6 +300,7 @@ erDiagram
         string InvoiceNumber UK
         uuid PolicyId FK "nullable before issuance"
         uuid BillToPartyId FK
+        string Description
         string Status
         decimal Subtotal
         decimal TaxAmount
@@ -368,20 +308,11 @@ erDiagram
         datetime IssuedAt
         datetime DueAt
     }
-    INVOICE_LINES {
-        uuid Id PK
-        uuid InvoiceId FK
-        string LineType
-        string Description
-        decimal Quantity
-        decimal UnitPrice
-        decimal TaxRate
-        decimal Total
-    }
     PAYMENTS {
         uuid Id PK
         uuid TenantId "external ABP tenant reference; nullable"
         string PaymentReference UK
+        uuid InvoiceId FK
         uuid PayerPartyId FK
         string Method "Mada Card ApplePay Sadad Bank Tabby Tamara Credit"
         string Status
@@ -407,14 +338,6 @@ erDiagram
         decimal Amount
         string Status
     }
-    CREDIT_NOTES {
-        uuid Id PK
-        uuid InvoiceId FK
-        string Number UK
-        decimal Amount
-        string Reason
-        datetime IssuedAt
-    }
     REFUNDS {
         uuid Id PK
         uuid PaymentId FK
@@ -430,7 +353,8 @@ erDiagram
         string ClaimNumber UK
         uuid PolicyId FK
         uuid ClaimantPartyId FK
-        uuid PolicyAssetId FK
+        string SubjectType "Vehicle or MedicalMember"
+        uuid SubjectReferenceId
         string ClaimType
         datetime IncidentAt
         string NajmOrTrafficReference
@@ -461,10 +385,6 @@ erDiagram
 ```mermaid
 erDiagram
     direction LR
-    VEHICLE_MAKES ||--o{ VEHICLE_MODELS : has
-    VEHICLE_MODELS ||--o{ VEHICLE_CODE_MAPPINGS : maps
-    VEHICLES }o--|| VEHICLE_MODELS : classified_as
-    VEHICLES ||--o{ VEHICLE_REGISTRATIONS : registered_as
     VEHICLES ||--o{ VEHICLE_PARTY_ROLES : owned_or_used_by
     PARTIES ||--o{ VEHICLE_PARTY_ROLES : assigned_to
     QUOTE_REQUESTS ||--o| MOTOR_QUOTE_DETAILS : describes
@@ -474,47 +394,20 @@ erDiagram
     POLICIES ||--o{ POLICY_VEHICLES : covers
     VEHICLES ||--o{ POLICY_VEHICLES : insured_by
 
-    VEHICLE_MAKES {
-        uuid Id PK
-        string Code UK
-        string ArabicName
-        string EnglishName
-    }
-    VEHICLE_MODELS {
-        uuid Id PK
-        uuid MakeId FK
-        string ModelCode
-        string Name
-        string CategoryCode
-        int FirstModelYear
-        int LastModelYear
-    }
-    VEHICLE_CODE_MAPPINGS {
-        uuid Id PK
-        uuid VehicleModelId FK
-        string Provider "NIC Insurer Internal"
-        string ExternalCode
-        string ExternalName
-        bool IsApproved
-    }
     VEHICLES {
         uuid Id PK
         uuid TenantId "external ABP tenant reference; nullable"
-        uuid VehicleModelId FK
+        string Make
+        string Model
+        string ExternalModelCode
         string SerialNumber UK
         string CustomsCardNumber UK
+        string PlateArabic
+        string PlateEnglish
         int ModelYear
         string Color
         decimal MarketValue
         string Status
-    }
-    VEHICLE_REGISTRATIONS {
-        uuid Id PK
-        uuid VehicleId FK
-        string PlateArabic
-        string PlateEnglish
-        datetime ValidFrom
-        datetime ValidTo
     }
     VEHICLE_PARTY_ROLES {
         uuid Id PK
@@ -566,25 +459,12 @@ erDiagram
     ORGANIZATIONS ||--o{ ORGANIZATION_MEMBERS : employs_or_sponsors
     PARTIES ||--o{ ORGANIZATION_MEMBERS : represents_person_only
     ORGANIZATION_MEMBERS ||--o{ ORGANIZATION_MEMBERS : sponsors_dependent
-    MEDICAL_PLAN_CLASSES ||--o{ MEDICAL_CLASS_BENEFITS : defines
     QUOTE_REQUESTS ||--o| MEDICAL_QUOTE_DETAILS : describes
     MEDICAL_QUOTE_DETAILS ||--|{ MEDICAL_QUOTE_MEMBERS : contains
     ORGANIZATION_MEMBERS ||--o{ MEDICAL_QUOTE_MEMBERS : quoted_as
-    MEDICAL_PLAN_CLASSES ||--o{ MEDICAL_QUOTE_MEMBERS : assigned_class
     MEDICAL_QUOTE_DETAILS ||--o{ MEDICAL_DISCLOSURES : declares
-    MEDICAL_DISCLOSURES ||--|{ DISCLOSURE_ANSWERS : answers
-    DISCLOSURE_QUESTIONS ||--o{ DISCLOSURE_ANSWERS : asks
-    DISCLOSURE_ANSWERS ||--o{ DISCLOSURE_PERSONS : concerns
-    PARTIES ||--o{ DISCLOSURE_PERSONS : disclosed_for_person_only
-    MEDICAL_DISCLOSURES ||--o| UNDERWRITING_DECISIONS : reviewed_by
     POLICIES ||--o{ MEDICAL_POLICY_MEMBERS : enrolls
     PARTIES ||--o{ MEDICAL_POLICY_MEMBERS : insured_member_person_only
-    MEDICAL_PLAN_CLASSES ||--o{ MEDICAL_POLICY_MEMBERS : receives_class
-    INSURERS ||--o{ MEDICAL_NETWORKS : publishes
-    MEDICAL_NETWORKS ||--o{ NETWORK_CLASS_ACCESS : exposes
-    MEDICAL_PLAN_CLASSES ||--o{ NETWORK_CLASS_ACCESS : controls
-    MEDICAL_NETWORKS ||--o{ NETWORK_PROVIDER_MEMBERSHIPS : includes
-    MEDICAL_PROVIDERS ||--o{ NETWORK_PROVIDER_MEMBERSHIPS : joins
     POLICY_ENDORSEMENTS ||--o{ MEDICAL_ENDORSEMENT_MEMBERS : changes
     PARTIES ||--o{ MEDICAL_ENDORSEMENT_MEMBERS : subject_person_only
 
@@ -598,22 +478,6 @@ erDiagram
         string Status
         datetime EffectiveFrom
         datetime EffectiveTo
-    }
-    MEDICAL_PLAN_CLASSES {
-        uuid Id PK
-        string Code UK "VIP A B C"
-        string Name
-        decimal BaseRate
-        string RoomType
-        string NetworkTier
-        bool IsActive
-    }
-    MEDICAL_CLASS_BENEFITS {
-        uuid Id PK
-        uuid ClassId FK
-        string BenefitCode
-        string LimitValue
-        string CopayValue
     }
     MEDICAL_QUOTE_DETAILS {
         uuid QuoteRequestId PK, FK
@@ -630,17 +494,9 @@ erDiagram
         uuid Id PK
         uuid MedicalQuoteRequestId FK
         uuid OrganizationMemberId FK
-        uuid ClassId FK
+        string ClassCode "external class code such as VIP A B C"
         decimal RatedPremium
         json RatingSnapshot
-    }
-    DISCLOSURE_QUESTIONS {
-        uuid Id PK
-        string Code UK
-        string Text
-        string AppliesTo
-        int Version
-        bool IsActive
     }
     MEDICAL_DISCLOSURES {
         uuid Id PK
@@ -649,72 +505,22 @@ erDiagram
         uuid DeclaredByPartyId FK
         datetime DeclaredAt
         string Status
-    }
-    DISCLOSURE_ANSWERS {
-        uuid Id PK
-        uuid DisclosureId FK
-        uuid QuestionId FK
-        bool Answer
-        text Details
-    }
-    DISCLOSURE_PERSONS {
-        uuid Id PK
-        uuid DisclosureAnswerId FK
-        uuid PersonPartyId FK
-    }
-    UNDERWRITING_DECISIONS {
-        uuid Id PK
-        uuid DisclosureId FK, UK
-        uuid InsurerId FK
-        string Status "Pending Approved Declined"
+        json AnswerSnapshot
+        string UnderwritingStatus "Pending Approved Declined"
         decimal LoadingRate
-        text Reason
-        datetime DecidedAt
+        text UnderwritingReason
         string ExternalReference
+        json ExternalResponseSnapshot
     }
     MEDICAL_POLICY_MEMBERS {
         uuid Id PK
         uuid PolicyId FK
         uuid PersonPartyId FK
-        uuid ClassId FK
+        string ClassCode
         uuid SponsorMemberId FK
         string ChiStatus
         string MemberCardNumber
         decimal AnnualPremium
-        datetime EffectiveFrom
-        datetime EffectiveTo
-    }
-    MEDICAL_PROVIDERS {
-        uuid Id PK
-        string ProviderCode UK
-        string Name
-        string ProviderType
-        string CityCode
-        string District
-        bool Is24Hours
-        json Specialties
-    }
-    MEDICAL_NETWORKS {
-        uuid Id PK
-        uuid InsurerId FK
-        string Code UK
-        string Name
-        int Version
-        date EffectiveFrom
-        date EffectiveTo
-    }
-    NETWORK_CLASS_ACCESS {
-        uuid Id PK
-        uuid NetworkId FK
-        uuid ClassId FK
-        string MinimumProviderTier
-    }
-    NETWORK_PROVIDER_MEMBERSHIPS {
-        uuid Id PK
-        uuid NetworkId FK
-        uuid ProviderId FK
-        string ProviderTier
-        bool DirectBilling
         datetime EffectiveFrom
         datetime EffectiveTo
     }
@@ -723,7 +529,7 @@ erDiagram
         uuid EndorsementId FK
         uuid PersonPartyId FK
         string Action "Add Remove ChangeClass"
-        uuid ClassId FK
+        string ClassCode
         string RemovalReason
         decimal ProratedAmount
         string ChiStatus
@@ -735,7 +541,6 @@ erDiagram
 ```mermaid
 erDiagram
     direction LR
-    FUNDERS ||--|| FUNDER_SETTINGS : configures
     FUNDERS ||--o{ FUNDER_INSURERS : enables
     INSURERS ||--o{ FUNDER_INSURERS : available_to
     FUNDERS ||--o{ FINANCING_CONTRACTS : owns
@@ -753,27 +558,15 @@ erDiagram
     FINANCING_CONTRACTS ||--o{ RENEWAL_ITEMS : renews
     RENEWAL_ITEMS ||--o{ RENEWAL_ITEM_OFFERS : receives
     INSURERS ||--o{ RENEWAL_ITEM_OFFERS : prices
-    RENEWAL_ITEMS ||--o{ RENEWAL_APPROVALS : approved_by_funder
     FINANCING_CONTRACTS ||--o{ LESSEE_SERVICE_PURCHASES : purchases
     POLICY_ADDONS ||--o| LESSEE_SERVICE_PURCHASES : creates
 
-    FUNDER_SETTINGS {
-        uuid FunderId PK, FK
-        bool LockRepairPolicy
-        int AgencyRepairYears
-        json AllowedDeductibles
-        string CustomerPortalDomain
-        string B2bIntegrationStatus
-        string ConcurrencyStamp
-    }
     FUNDER_INSURERS {
         uuid Id PK
         uuid TenantId "external ABP tenant reference; required"
         uuid FunderId FK
         uuid InsurerId FK
         bool IsEnabled
-        string ArabicDisplayName
-        string EnglishDisplayName
         int SortOrder
     }
     FINANCING_CONTRACTS {
@@ -791,7 +584,7 @@ erDiagram
     LEASE_QUOTE_DETAILS {
         uuid QuoteRequestId PK, FK
         uuid FinancingContractId FK "nullable before contract creation"
-        uuid VehicleModelId FK
+        uuid VehicleId FK
         int ModelYear
         decimal VehicleValue
         int FinanceTermYears
@@ -854,6 +647,9 @@ erDiagram
         decimal ProposedValue
         bool VehicleApproved
         bool PriceApproved
+        uuid ApprovedByIdentityUserId "external ABP Identity user reference; nullable"
+        datetime ApprovedAt
+        string ApprovalNote
         string Status
     }
     RENEWAL_ITEM_OFFERS {
@@ -866,20 +662,12 @@ erDiagram
         decimal TaxAmount
         bool IsLowest
     }
-    RENEWAL_APPROVALS {
-        uuid Id PK
-        uuid RenewalItemId FK
-        string ApprovalType "Vehicle Price"
-        bool IsApproved
-        uuid ApprovedByIdentityUserId "external ABP Identity user reference"
-        datetime ApprovedAt
-        string Note
-    }
     LESSEE_SERVICE_PURCHASES {
         uuid Id PK
         uuid TenantId "external ABP tenant reference; required"
         uuid FinancingContractId FK
-        uuid AddonDefinitionId FK
+        string ExternalAddonCode
+        string AddonName
         uuid PolicyAddonId FK
         uuid InvoiceId FK
         string Status
@@ -888,7 +676,7 @@ erDiagram
     }
 ```
 
-## 7. Operations, integrations, support, and commercial rules
+## 7. Operations, support, and commercial rules
 
 ```mermaid
 erDiagram
@@ -899,12 +687,6 @@ erDiagram
     OPERATIONAL_EXCEPTIONS ||--|{ EXCEPTION_ACTIONS : resolved_by
     PARTIES ||--o{ SUPPORT_TICKETS : opens
     SUPPORT_TICKETS ||--|{ TICKET_ACTIVITIES : has
-    SUPPORT_TICKETS ||--o{ TICKET_LINKS : references
-    INTEGRATION_PROVIDERS ||--o{ INTEGRATION_ENDPOINTS : exposes
-    INTEGRATION_ENDPOINTS ||--o{ INTEGRATION_CALLS : logs
-    INTEGRATION_PROVIDERS ||--o{ INTEGRATION_INCIDENTS : suffers
-    INTEGRATION_INCIDENTS ||--o{ INCIDENT_NOTIFICATIONS : notifies
-    INTEGRATION_PROVIDERS ||--o{ INTEGRATION_SUBSCRIPTIONS : contracted_as
     PROMOTIONS ||--o{ PROMOTION_REDEMPTIONS : redeemed
     QUOTE_REQUESTS ||--o{ PROMOTION_REDEMPTIONS : applies_to
     INSURERS ||--o{ COMMISSION_RULES : constrained_by
@@ -934,8 +716,10 @@ erDiagram
         uuid TenantId "external ABP tenant reference; nullable"
         string Number UK
         uuid CustomerPartyId FK
-        string ProductType
+        string InsuranceType "Motor Medical LeasedVehicle"
         string TicketType
+        string ReferenceType
+        uuid ReferenceId
         string Priority
         string Status
         uuid OwnerIdentityUserId "external ABP Identity user reference"
@@ -949,65 +733,6 @@ erDiagram
         uuid ActorIdentityUserId "external ABP Identity user reference"
         text Body
         datetime CreatedAt
-    }
-    TICKET_LINKS {
-        uuid Id PK
-        uuid TicketId FK
-        string ReferenceType
-        uuid ReferenceId
-    }
-    INTEGRATION_PROVIDERS {
-        uuid Id PK
-        string Code UK "Najm NIC Yakeen Tahaqaq CHI Payments SMS Insurer"
-        string Name
-        string Status
-        string OwnerTeam
-    }
-    INTEGRATION_ENDPOINTS {
-        uuid Id PK
-        uuid ProviderId FK
-        string OperationCode
-        string BaseUrl
-        int TimeoutSeconds
-        bool IsActive
-    }
-    INTEGRATION_CALLS {
-        uuid Id PK
-        uuid TenantId "external ABP tenant reference; nullable"
-        uuid EndpointId FK
-        string CorrelationId UK
-        string ReferenceType
-        uuid ReferenceId
-        string Status
-        int DurationMilliseconds
-        string ErrorCode
-        datetime StartedAt
-    }
-    INTEGRATION_INCIDENTS {
-        uuid Id PK
-        uuid ProviderId FK
-        string Severity
-        string Status
-        datetime StartedAt
-        datetime ResolvedAt
-        int AffectedOperations
-        text Summary
-    }
-    INCIDENT_NOTIFICATIONS {
-        uuid Id PK
-        uuid IncidentId FK
-        string Recipient
-        string Channel
-        datetime SentAt
-    }
-    INTEGRATION_SUBSCRIPTIONS {
-        uuid Id PK
-        uuid ProviderId FK
-        date StartDate
-        date EndDate
-        decimal Cost
-        string Status
-        string ContractReference
     }
     PROMOTIONS {
         uuid Id PK
@@ -1032,7 +757,7 @@ erDiagram
     COMMISSION_RULES {
         uuid Id PK
         string InsuranceType "Motor Medical LeasedVehicle"
-        uuid InsurerId FK "nullable for product default"
+        uuid InsurerId FK "nullable for insurance-type default"
         decimal Rate
         datetime EffectiveFrom
         datetime EffectiveTo
@@ -1043,17 +768,17 @@ erDiagram
 
 | Aggregate root | Owned children | Important invariant |
 |---|---|---|
-| `Funder` | `FunderSettings`, `FunderInsurer` | One funder per tenant; enabled insurers are tenant-specific. |
+| `Funder` | `FunderInsurer` | One funder per tenant; enabled insurers are tenant-specific. Portal configuration uses ABP Settings. |
 | `Party` | contacts, addresses, bank accounts | National/unified identifiers are unique within the applicable business scope; sensitive values are encrypted. |
-| `QuoteRequest` | risk items, offers, offer lines, selection, signature, status history, pricing snapshots | Once an offer is received, its commercial values are immutable. Selection references exactly one successful offer. |
-| `Policy` | parties, assets, coverages, add-ons, documents, status history | Issuance requires a selected valid offer and successful/authorized payment path. Historical policy terms never change in place. |
-| `PolicyEndorsement` | endorsement lines and product-specific member/service changes | An endorsement is applied atomically and creates its invoice or credit note. |
-| `Invoice` | invoice lines and installments | Totals equal lines plus tax; issued invoices are not edited, only credited. |
+| `QuoteRequest` | offers, coverages, add-ons, signature, status history | Submitted inputs and external responses are immutable snapshots. A request selects at most one successful offer. |
+| `Policy` | parties, coverages, add-ons, documents, status history | Issuance requires a selected valid offer and successful/authorized payment path. Historical policy terms never change in place. |
+| `PolicyEndorsement` | endorsement lines and flow-specific member/service changes | An endorsement is applied atomically and creates its invoice or refund when required. |
+| `Invoice` | installments | Totals and description are stored on the invoice; issued invoices are not edited. |
 | `Payment` | payment attempts | Provider callbacks are idempotent by provider reference and idempotency key. |
 | `Claim` | documents and status history | Status changes are append-only and required documents are tracked explicitly. |
-| `MedicalDisclosure` | answers and affected persons | Question/version snapshots are frozen when declared; underwriting always refers to that version. |
-| `RenewalBatch` | items, item offers, approvals | Vehicle approval precedes pricing; price approval precedes bulk purchase. |
-| `SupportTicket` | activities and linked references | Every escalation and reassignment is retained. |
+| `MedicalDisclosure` | answer and underwriting snapshots | Question/version snapshots are frozen when declared; underwriting always refers to that version. |
+| `RenewalBatch` | items and item offers | Approval data is stored on the item; vehicle approval precedes pricing and price approval precedes purchase. |
+| `SupportTicket` | activities | Each ticket can reference one business record directly. Every escalation and reassignment is retained. |
 | `OperationalException` | resolution actions | Resolution is explicit; it never silently mutates the original quote or policy. |
 
 ## Business rules captured from the prototypes
@@ -1067,8 +792,8 @@ erDiagram
 7. Annual financed-vehicle renewals are batch based: candidate list, vehicle approval, pricing round, price approval, purchase, Najm upload, and customer notification.
 8. Medical SME policies cover employees and dependants. Removing an employee also removes active dependants. Additions and removals are prorated and processed as endorsements.
 9. Medical disclosure answers identify affected members and produce an insurer underwriting decision and possible premium loading.
-10. Medical members have per-member class, premium, CHI upload state, and digital card data. Provider network eligibility depends on insurer network and class.
-11. Policies, invoices, payments, credit notes, claims, integration calls, and audit evidence must remain queryable after business cancellation; use statuses instead of destructive deletion.
+10. Medical members have per-member class, premium, CHI upload state, and digital card data. Medical networks and benefits are read from the external API.
+11. Policies, invoices, payments, refunds, claims, and audit evidence must remain queryable after business cancellation; use statuses instead of destructive deletion.
 
 ## ABP implementation notes
 
@@ -1087,16 +812,16 @@ erDiagram
 ## Suggested ABP modules
 
 1. `Thiqatak.Parties`
-2. `Thiqatak.Catalog`
-3. `Thiqatak.Quoting`
-4. `Thiqatak.Policies`
-5. `Thiqatak.Billing`
-6. `Thiqatak.Claims`
-7. `Thiqatak.Motor`
-8. `Thiqatak.Medical`
-9. `Thiqatak.Leasing`
-10. `Thiqatak.Operations`
-11. `Thiqatak.Integrations`
+2. `Thiqatak.Quoting`
+3. `Thiqatak.Policies`
+4. `Thiqatak.Billing`
+5. `Thiqatak.Claims`
+6. `Thiqatak.Motor`
+7. `Thiqatak.Medical`
+8. `Thiqatak.Leasing`
+9. `Thiqatak.Operations`
+
+External API clients, monitoring, and provider configuration belong to infrastructure code rather than the business entity model.
 
 Start as a modular monolith with one database and separate EF Core schemas per module. The boundaries above can later become services without changing the core ownership model.
 
@@ -1111,11 +836,11 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 
 | التصنيف | الكيانات |
 |---|---|
-| كيانات مشتركة بين جميع المسارات | `PARTIES`, `CLIENTS`, `ORGANIZATIONS`, `PARTY_CONTACTS`, `PARTY_ADDRESSES`, `PARTY_BANK_ACCOUNTS`, `IDENTITY_VERIFICATIONS`, `INSURERS`, `COVERAGE_DEFINITIONS`, `ADDON_DEFINITIONS`, `QUOTE_REQUESTS`, `QUOTE_RISK_ITEMS`, `QUOTE_OFFERS`, `QUOTE_OFFER_LINES`, `QUOTE_OFFER_COVERAGES`, `QUOTE_OFFER_ADDONS`, `QUOTE_SELECTIONS`, `QUOTE_SIGNATURES`, `QUOTE_STATUS_HISTORY`, `PRICING_SNAPSHOTS`, `POLICIES`, `POLICY_PARTIES`, `POLICY_ASSETS`, `POLICY_COVERAGES`, `POLICY_ADDONS`, `POLICY_DOCUMENTS`, `POLICY_STATUS_HISTORY`, `POLICY_ENDORSEMENTS`, `ENDORSEMENT_LINES`, `INVOICES`, `INVOICE_LINES`, `PAYMENTS`, `PAYMENT_ATTEMPTS`, `INSTALLMENTS`, `CREDIT_NOTES`, `REFUNDS`, `CLAIMS`, `CLAIM_DOCUMENTS`, `CLAIM_STATUS_HISTORY` |
-| تأمين المركبات | `VEHICLE_MAKES`, `VEHICLE_MODELS`, `VEHICLE_CODE_MAPPINGS`, `VEHICLES`, `VEHICLE_REGISTRATIONS`, `VEHICLE_PARTY_ROLES`, `MOTOR_QUOTE_DETAILS`, `MOTOR_QUOTE_DRIVERS`, `POLICY_VEHICLES` |
-| التأمين الطبي | `ORGANIZATION_MEMBERS`, `MEDICAL_PLAN_CLASSES`, `MEDICAL_CLASS_BENEFITS`, `MEDICAL_QUOTE_DETAILS`, `MEDICAL_QUOTE_MEMBERS`, `DISCLOSURE_QUESTIONS`, `MEDICAL_DISCLOSURES`, `DISCLOSURE_ANSWERS`, `DISCLOSURE_PERSONS`, `UNDERWRITING_DECISIONS`, `MEDICAL_POLICY_MEMBERS`, `MEDICAL_PROVIDERS`, `MEDICAL_NETWORKS`, `NETWORK_CLASS_ACCESS`, `NETWORK_PROVIDER_MEMBERSHIPS`, `MEDICAL_ENDORSEMENT_MEMBERS` |
-| المركبات المؤجرة | `FUNDERS`, `FUNDER_SETTINGS`, `FUNDER_INSURERS`, `FINANCING_CONTRACTS`, `LEASE_QUOTE_DETAILS`, `LEASE_YEAR_PROJECTIONS`, `LEASE_OFFER_YEARS`, `CONTRACT_POLICY_YEARS`, `INSURANCE_COLLECTIONS`, `RENEWAL_BATCHES`, `RENEWAL_ITEMS`, `RENEWAL_ITEM_OFFERS`, `RENEWAL_APPROVALS`, `LESSEE_SERVICE_PURCHASES` |
-| التشغيل والتكاملات المشتركة | `OPERATIONAL_EXCEPTIONS`, `EXCEPTION_ACTIONS`, `SUPPORT_TICKETS`, `TICKET_ACTIVITIES`, `TICKET_LINKS`, `INTEGRATION_PROVIDERS`, `INTEGRATION_ENDPOINTS`, `INTEGRATION_CALLS`, `INTEGRATION_INCIDENTS`, `INCIDENT_NOTIFICATIONS`, `INTEGRATION_SUBSCRIPTIONS`, `PROMOTIONS`, `PROMOTION_REDEMPTIONS`, `COMMISSION_RULES` |
+| كيانات مشتركة بين جميع المسارات | `PARTIES`, `CLIENTS`, `ORGANIZATIONS`, `PARTY_CONTACTS`, `PARTY_ADDRESSES`, `PARTY_BANK_ACCOUNTS`, `IDENTITY_VERIFICATIONS`, `INSURERS`, `QUOTE_REQUESTS`, `QUOTE_OFFERS`, `QUOTE_OFFER_COVERAGES`, `QUOTE_OFFER_ADDONS`, `QUOTE_SIGNATURES`, `QUOTE_STATUS_HISTORY`, `POLICIES`, `POLICY_PARTIES`, `POLICY_COVERAGES`, `POLICY_ADDONS`, `POLICY_DOCUMENTS`, `POLICY_STATUS_HISTORY`, `POLICY_ENDORSEMENTS`, `ENDORSEMENT_LINES`, `INVOICES`, `PAYMENTS`, `PAYMENT_ATTEMPTS`, `INSTALLMENTS`, `REFUNDS`, `CLAIMS`, `CLAIM_DOCUMENTS`, `CLAIM_STATUS_HISTORY` |
+| تأمين المركبات | `VEHICLES`, `VEHICLE_PARTY_ROLES`, `MOTOR_QUOTE_DETAILS`, `MOTOR_QUOTE_DRIVERS`, `POLICY_VEHICLES` |
+| التأمين الطبي | `ORGANIZATION_MEMBERS`, `MEDICAL_QUOTE_DETAILS`, `MEDICAL_QUOTE_MEMBERS`, `MEDICAL_DISCLOSURES`, `MEDICAL_POLICY_MEMBERS`, `MEDICAL_ENDORSEMENT_MEMBERS` |
+| المركبات المؤجرة | `FUNDERS`, `FUNDER_INSURERS`, `FINANCING_CONTRACTS`, `LEASE_QUOTE_DETAILS`, `LEASE_YEAR_PROJECTIONS`, `LEASE_OFFER_YEARS`, `CONTRACT_POLICY_YEARS`, `INSURANCE_COLLECTIONS`, `RENEWAL_BATCHES`, `RENEWAL_ITEMS`, `RENEWAL_ITEM_OFFERS`, `LESSEE_SERVICE_PURCHASES` |
+| التشغيل المشترك | `OPERATIONAL_EXCEPTIONS`, `EXCEPTION_ACTIONS`, `SUPPORT_TICKETS`, `TICKET_ACTIVITIES`, `PROMOTIONS`, `PROMOTION_REDEMPTIONS`, `COMMISSION_RULES` |
 
 ## Entity names and usage | أسماء الكيانات واستخدامها
 
@@ -1130,21 +855,14 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 | `PARTY_BANK_ACCOUNTS` | الحسابات البنكية للأطراف | يحفظ الآيبان وحالة التحقق منه. |
 | `IDENTITY_VERIFICATIONS` | عمليات التحقق من الهوية | يسجل نتائج التحقق من مزود خارجي. |
 | `INSURERS` | شركات التأمين | مرجع تقني لاسم شركة التأمين وصورتها. |
-| `COVERAGE_DEFINITIONS` | تعريفات التغطيات | يعرف أنواع التغطيات الخاصة بكل منتج. |
-| `ADDON_DEFINITIONS` | تعريفات الخدمات الإضافية | يعرف أنواع الإضافات الممكنة للمنتج. |
 | `QUOTE_REQUESTS` | طلبات التسعير | يمثل طلب تسعير تأميني واحد. |
-| `QUOTE_RISK_ITEMS` | عناصر مخاطر التسعير | يحفظ المركبات أو الأشخاص المطلوب تسعيرهم. |
 | `QUOTE_OFFERS` | عروض التسعير | يحفظ نسخة ثابتة من عرض الـAPI الخارجي. |
-| `QUOTE_OFFER_LINES` | بنود عرض التسعير | يفصل القسط والخصم والضريبة والرسوم. |
 | `QUOTE_OFFER_COVERAGES` | تغطيات عرض التسعير | يحفظ التغطيات التي أعادها الـAPI. |
 | `QUOTE_OFFER_ADDONS` | إضافات عرض التسعير | يحفظ الإضافات والأسعار التي أعادها الـAPI. |
-| `QUOTE_SELECTIONS` | اختيارات العروض | يسجل العرض الذي اختاره المستخدم. |
 | `QUOTE_SIGNATURES` | توقيعات التسعير | يحفظ توقيع أو موافقة العميل على العرض. |
 | `QUOTE_STATUS_HISTORY` | سجل حالات التسعير | يسجل جميع تغيرات حالة طلب التسعير. |
-| `PRICING_SNAPSHOTS` | لقطات التسعير | يجمد مدخلات ونتائج التسعير للتدقيق. |
 | `POLICIES` | وثائق التأمين | يمثل وثيقة تأمين صادرة. |
 | `POLICY_PARTIES` | أطراف الوثيقة | يحدد حامل الوثيقة والمستفيد والأدوار الأخرى. |
-| `POLICY_ASSETS` | أصول الوثيقة | يسجل الأصول المشمولة بالتأمين. |
 | `POLICY_COVERAGES` | تغطيات الوثيقة | يحفظ التغطيات النهائية للوثيقة. |
 | `POLICY_ADDONS` | إضافات الوثيقة | يحفظ الخدمات الإضافية المشتراة. |
 | `POLICY_DOCUMENTS` | مستندات الوثيقة | يحفظ بيانات ملفات الوثيقة والشهادات. |
@@ -1152,41 +870,24 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 | `POLICY_ENDORSEMENTS` | ملاحق الوثيقة | يمثل تعديلًا رسميًا على وثيقة صادرة. |
 | `ENDORSEMENT_LINES` | بنود الملحق | يفصل عناصر الإضافة أو الحذف أو التعديل. |
 | `INVOICES` | الفواتير | يمثل مبلغًا مستحقًا على العميل. |
-| `INVOICE_LINES` | بنود الفاتورة | يفصل عناصر وقيم الفاتورة. |
 | `PAYMENTS` | المدفوعات | يسجل عملية دفع منطقية. |
 | `PAYMENT_ATTEMPTS` | محاولات الدفع | يسجل كل محاولة مع بوابة الدفع. |
 | `INSTALLMENTS` | الأقساط | يحدد جدول سداد الفاتورة. |
-| `CREDIT_NOTES` | الإشعارات الدائنة | يسجل تخفيضًا أو رصيدًا لصالح العميل. |
 | `REFUNDS` | المبالغ المستردة | يسجل استرداد مبلغ مدفوع. |
 | `CLAIMS` | المطالبات | يمثل مطالبة تأمينية على وثيقة. |
 | `CLAIM_DOCUMENTS` | مستندات المطالبة | يحفظ مرفقات المطالبة. |
 | `CLAIM_STATUS_HISTORY` | سجل حالات المطالبة | يسجل مراحل معالجة المطالبة. |
-| `VEHICLE_MAKES` | ماركات المركبات | مرجع لمصنعي المركبات. |
-| `VEHICLE_MODELS` | موديلات المركبات | مرجع لموديلات كل ماركة. |
-| `VEHICLE_CODE_MAPPINGS` | خرائط أكواد المركبات | يطابق أكواد المركبة بين الأنظمة الخارجية. |
 | `VEHICLES` | المركبات | يمثل مركبة واحدة داخل المنصة. |
-| `VEHICLE_REGISTRATIONS` | تسجيلات المركبات | يحفظ اللوحة والتسجيل عبر الزمن. |
 | `VEHICLE_PARTY_ROLES` | أدوار الأطراف على المركبات | يحدد المالك والمستخدم والمستأجر. |
 | `MOTOR_QUOTE_DETAILS` | تفاصيل تسعير المركبات | يحفظ بيانات طلب تأمين مركبة فردية. |
 | `MOTOR_QUOTE_DRIVERS` | سائقي طلب المركبة | يحفظ السائقين ونسب القيادة في الطلب. |
 | `POLICY_VEHICLES` | مركبات الوثيقة | يربط المركبات بالوثائق الصادرة. |
 | `ORGANIZATION_MEMBERS` | أعضاء المنشأة | يمثل موظفًا أو تابعًا داخل المنشأة. |
-| `MEDICAL_PLAN_CLASSES` | فئات الخطط الطبية | يعرف فئات التغطية الطبية. |
-| `MEDICAL_CLASS_BENEFITS` | مزايا الفئات الطبية | يحدد مزايا وحدود كل فئة. |
 | `MEDICAL_QUOTE_DETAILS` | تفاصيل التسعير الطبي | يحفظ بيانات طلب التأمين الطبي. |
 | `MEDICAL_QUOTE_MEMBERS` | أعضاء التسعير الطبي | يحفظ الأعضاء المطلوب تسعيرهم وفئاتهم. |
-| `DISCLOSURE_QUESTIONS` | أسئلة الإفصاح الطبي | يعرف أسئلة النموذج الطبي. |
 | `MEDICAL_DISCLOSURES` | الإفصاحات الطبية | يمثل نموذج إفصاح مرتبطًا بطلب طبي. |
-| `DISCLOSURE_ANSWERS` | إجابات الإفصاح | يحفظ إجابة كل سؤال طبي. |
-| `DISCLOSURE_PERSONS` | أشخاص الإفصاح | يحدد الأشخاص المتأثرين بالإجابة. |
-| `UNDERWRITING_DECISIONS` | قرارات الاكتتاب الطبي | يحفظ القبول أو الرفض أو التحميل. |
 | `MEDICAL_POLICY_MEMBERS` | أعضاء الوثيقة الطبية | يسجل الأعضاء المؤمن عليهم فعليًا. |
-| `MEDICAL_PROVIDERS` | مقدمو الخدمات الطبية | نسخة مرجعية من مقدمي الخدمة الخارجيين. |
-| `MEDICAL_NETWORKS` | الشبكات الطبية | يحفظ نسخة شبكة منشورة من شركة التأمين. |
-| `NETWORK_CLASS_ACCESS` | صلاحية الفئات للشبكات | يحدد الفئات التي تستخدم الشبكة. |
-| `NETWORK_PROVIDER_MEMBERSHIPS` | عضويات مقدمي الخدمة بالشبكات | يحدد مقدمي الخدمة داخل كل شبكة. |
 | `MEDICAL_ENDORSEMENT_MEMBERS` | أعضاء الملحق الطبي | يسجل الأعضاء المتأثرين بملحق طبي. |
-| `FUNDER_SETTINGS` | إعدادات جهة التمويل | يحفظ إعدادات بوابة جهة التمويل. |
 | `FUNDER_INSURERS` | شركات تأمين جهة التمويل | يحدد الشركات المتاحة للجهة. |
 | `FINANCING_CONTRACTS` | عقود التمويل | يمثل عقد تمويل لمركبة ومستأجر. |
 | `LEASE_QUOTE_DETAILS` | تفاصيل تسعير التأجير | يحفظ بيانات تسعير عقد التأجير. |
@@ -1197,19 +898,11 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 | `RENEWAL_BATCHES` | دفعات التجديد | يمثل عملية تجديد جماعية. |
 | `RENEWAL_ITEMS` | عناصر التجديد | يمثل عقدًا أو مركبة داخل دفعة التجديد. |
 | `RENEWAL_ITEM_OFFERS` | عروض عناصر التجديد | يحفظ عروض التجديد القادمة من الـAPI. |
-| `RENEWAL_APPROVALS` | موافقات التجديد | يسجل موافقات جهة التمويل. |
 | `LESSEE_SERVICE_PURCHASES` | مشتريات خدمات المستأجر | يسجل شراء خدمة إضافية للمركبة. |
 | `OPERATIONAL_EXCEPTIONS` | الاستثناءات التشغيلية | يسجل مشكلة تحتاج تدخلًا يدويًا. |
 | `EXCEPTION_ACTIONS` | إجراءات الاستثناء | يسجل خطوات معالجة الاستثناء. |
 | `SUPPORT_TICKETS` | تذاكر الدعم | يمثل طلب دعم لعميل أو منشأة. |
 | `TICKET_ACTIVITIES` | أنشطة التذكرة | يسجل التعليقات والتعيين وتغير الحالة. |
-| `TICKET_LINKS` | روابط التذكرة | يربط التذكرة بطلب أو وثيقة أو دفعة. |
-| `INTEGRATION_PROVIDERS` | مزودو التكامل | يعرف الأنظمة والخدمات الخارجية. |
-| `INTEGRATION_ENDPOINTS` | نقاط التكامل | يعرف كل عملية API عند المزود. |
-| `INTEGRATION_CALLS` | استدعاءات التكامل | يسجل الاستدعاء والنتيجة ومدة الاستجابة. |
-| `INTEGRATION_INCIDENTS` | حوادث التكامل | يسجل عطلًا عند مزود خارجي. |
-| `INCIDENT_NOTIFICATIONS` | إشعارات حوادث التكامل | يسجل الجهات التي تم إشعارها بالعطل. |
-| `INTEGRATION_SUBSCRIPTIONS` | اشتراكات التكامل | يحفظ عقد أو اشتراك مزود الخدمة. |
 | `PROMOTIONS` | الحملات الترويجية | يعرف حملات المنصة المحلية فقط. |
 | `PROMOTION_REDEMPTIONS` | استخدامات الحملات | يسجل تطبيق حملة على طلب تسعير. |
-| `COMMISSION_RULES` | قواعد العمولات | يحدد عمولة الوسيط حسب المنتج والشركة. |
+| `COMMISSION_RULES` | قواعد العمولات | يحدد عمولة الوسيط حسب نوع التأمين والشركة. |
