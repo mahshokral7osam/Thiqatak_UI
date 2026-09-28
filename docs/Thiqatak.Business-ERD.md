@@ -14,6 +14,7 @@ The model deliberately represents business state, auditability, and integrations
 - Quotes and issued policies store immutable pricing and business snapshots. Later catalog or pricing-rule changes must not rewrite historical offers.
 - ABP Identity, roles, permissions, security logs, tenant management, settings, features, audit logging, and blob storage should be reused instead of rebuilt or represented as Thiqatak business entities.
 - Application notifications use ABP/infrastructure services and are not modeled as business entities.
+- Consent checkboxes remain part of the UI flow, but consent persistence is outside the current scope and has no dedicated business entity for now.
 - Organization users, roles, and permissions are managed by ABP Identity. `OrganizationPartyId` is stored as an ABP user extra property or claim. One user belongs to one business organization in the current scope.
 - `IdentityUserId` denotes a reference to an external ABP Identity user. `TenantId` denotes a reference to an external ABP tenant and appears only on business entities that can be tenant-owned.
 
@@ -27,7 +28,6 @@ erDiagram
     PARTIES ||--o{ PARTY_CONTACTS : has
     PARTIES ||--o{ PARTY_ADDRESSES : has
     PARTIES ||--o{ PARTY_BANK_ACCOUNTS : owns
-    PARTIES ||--o{ PARTY_CONSENTS : grants
     PARTIES ||--o{ IDENTITY_VERIFICATIONS : verifies
     FUNDERS }o--|| ORGANIZATIONS : legal_party
 
@@ -95,15 +95,6 @@ erDiagram
         bool IsPrimary
         string Status
     }
-    PARTY_CONSENTS {
-        uuid Id PK
-        uuid PartyId FK
-        string ConsentType
-        string TextVersion
-        datetime GrantedAt
-        uuid GrantedByIdentityUserId "external ABP Identity user reference"
-        string EvidenceDocumentId
-    }
     IDENTITY_VERIFICATIONS {
         uuid Id PK
         uuid PartyId FK
@@ -126,7 +117,6 @@ erDiagram
     INSURANCE_PRODUCTS ||--o{ COVERAGE_DEFINITIONS : defines
     INSURANCE_PRODUCTS ||--o{ ADDON_DEFINITIONS : defines
     QUOTE_REQUESTS ||--|{ QUOTE_RISK_ITEMS : contains
-    QUOTE_REQUESTS ||--o{ QUOTE_CONSENTS : records
     QUOTE_REQUESTS ||--o{ QUOTE_OFFERS : receives
     INSURER_PRODUCTS ||--o{ QUOTE_OFFERS : prices
     QUOTE_OFFERS ||--|{ QUOTE_OFFER_LINES : itemizes
@@ -198,12 +188,6 @@ erDiagram
         uuid RiskReferenceId
         decimal DeclaredValue
         json SubmittedSnapshot
-    }
-    QUOTE_CONSENTS {
-        uuid Id PK
-        uuid QuoteRequestId FK
-        uuid PartyConsentId FK
-        string Purpose
     }
     QUOTE_OFFERS {
         uuid Id PK
@@ -1147,7 +1131,7 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 
 | التصنيف | الكيانات |
 |---|---|
-| كيانات مشتركة بين جميع المسارات | `PARTIES`, `CLIENTS`, `ORGANIZATIONS`, `PARTY_CONTACTS`, `PARTY_ADDRESSES`, `PARTY_BANK_ACCOUNTS`, `PARTY_CONSENTS`, `IDENTITY_VERIFICATIONS`, `INSURERS`, `INSURANCE_PRODUCTS`, `INSURER_PRODUCTS`, `COVERAGE_DEFINITIONS`, `ADDON_DEFINITIONS`, `QUOTE_REQUESTS`, `QUOTE_RISK_ITEMS`, `QUOTE_CONSENTS`, `QUOTE_OFFERS`, `QUOTE_OFFER_LINES`, `QUOTE_OFFER_COVERAGES`, `QUOTE_OFFER_ADDONS`, `QUOTE_SELECTIONS`, `QUOTE_SIGNATURES`, `QUOTE_STATUS_HISTORY`, `PRICING_SNAPSHOTS`, `POLICIES`, `POLICY_PARTIES`, `POLICY_ASSETS`, `POLICY_COVERAGES`, `POLICY_ADDONS`, `POLICY_DOCUMENTS`, `POLICY_STATUS_HISTORY`, `POLICY_ENDORSEMENTS`, `ENDORSEMENT_LINES`, `INVOICES`, `INVOICE_LINES`, `PAYMENTS`, `PAYMENT_ATTEMPTS`, `INSTALLMENTS`, `CREDIT_NOTES`, `REFUNDS`, `CLAIMS`, `CLAIM_DOCUMENTS`, `CLAIM_STATUS_HISTORY` |
+| كيانات مشتركة بين جميع المسارات | `PARTIES`, `CLIENTS`, `ORGANIZATIONS`, `PARTY_CONTACTS`, `PARTY_ADDRESSES`, `PARTY_BANK_ACCOUNTS`, `IDENTITY_VERIFICATIONS`, `INSURERS`, `INSURANCE_PRODUCTS`, `INSURER_PRODUCTS`, `COVERAGE_DEFINITIONS`, `ADDON_DEFINITIONS`, `QUOTE_REQUESTS`, `QUOTE_RISK_ITEMS`, `QUOTE_OFFERS`, `QUOTE_OFFER_LINES`, `QUOTE_OFFER_COVERAGES`, `QUOTE_OFFER_ADDONS`, `QUOTE_SELECTIONS`, `QUOTE_SIGNATURES`, `QUOTE_STATUS_HISTORY`, `PRICING_SNAPSHOTS`, `POLICIES`, `POLICY_PARTIES`, `POLICY_ASSETS`, `POLICY_COVERAGES`, `POLICY_ADDONS`, `POLICY_DOCUMENTS`, `POLICY_STATUS_HISTORY`, `POLICY_ENDORSEMENTS`, `ENDORSEMENT_LINES`, `INVOICES`, `INVOICE_LINES`, `PAYMENTS`, `PAYMENT_ATTEMPTS`, `INSTALLMENTS`, `CREDIT_NOTES`, `REFUNDS`, `CLAIMS`, `CLAIM_DOCUMENTS`, `CLAIM_STATUS_HISTORY` |
 | تأمين المركبات | `VEHICLE_MAKES`, `VEHICLE_MODELS`, `VEHICLE_CODE_MAPPINGS`, `VEHICLES`, `VEHICLE_REGISTRATIONS`, `VEHICLE_PARTY_ROLES`, `MOTOR_QUOTE_DETAILS`, `MOTOR_QUOTE_DRIVERS`, `POLICY_VEHICLES` |
 | التأمين الطبي | `ORGANIZATION_MEMBERS`, `MEDICAL_PLAN_CLASSES`, `MEDICAL_CLASS_BENEFITS`, `MEDICAL_QUOTE_DETAILS`, `MEDICAL_QUOTE_MEMBERS`, `DISCLOSURE_QUESTIONS`, `MEDICAL_DISCLOSURES`, `DISCLOSURE_ANSWERS`, `DISCLOSURE_PERSONS`, `UNDERWRITING_DECISIONS`, `MEDICAL_POLICY_MEMBERS`, `MEDICAL_PROVIDERS`, `MEDICAL_NETWORKS`, `NETWORK_CLASS_ACCESS`, `NETWORK_PROVIDER_MEMBERSHIPS`, `MEDICAL_ENDORSEMENT_MEMBERS` |
 | المركبات المؤجرة | `FUNDERS`, `FUNDER_SETTINGS`, `FUNDER_INSURERS`, `FINANCING_CONTRACTS`, `LEASE_QUOTE_DETAILS`, `LEASE_YEAR_PROJECTIONS`, `LEASE_OFFER_YEARS`, `CONTRACT_POLICY_YEARS`, `INSURANCE_COLLECTIONS`, `RENEWAL_BATCHES`, `RENEWAL_ITEMS`, `RENEWAL_ITEM_OFFERS`, `RENEWAL_APPROVALS`, `LESSEE_SERVICE_PURCHASES` |
@@ -1164,7 +1148,6 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 | `PARTY_CONTACTS` | وسائل اتصال الأطراف | يحفظ الجوال والبريد وواتساب. |
 | `PARTY_ADDRESSES` | عناوين الأطراف | يحفظ العنوان الوطني والمدينة. |
 | `PARTY_BANK_ACCOUNTS` | الحسابات البنكية للأطراف | يحفظ الآيبان وحالة التحقق منه. |
-| `PARTY_CONSENTS` | موافقات الأطراف | يسجل الموافقات القانونية وإصدارات النصوص. |
 | `IDENTITY_VERIFICATIONS` | عمليات التحقق من الهوية | يسجل نتائج التحقق من مزود خارجي. |
 | `INSURERS` | شركات التأمين | مرجع تقني لاسم شركة التأمين وصورتها. |
 | `INSURANCE_PRODUCTS` | منتجات التأمين | يعرف أنواع منتجات التأمين المتاحة. |
@@ -1173,7 +1156,6 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 | `ADDON_DEFINITIONS` | تعريفات الخدمات الإضافية | يعرف أنواع الإضافات الممكنة للمنتج. |
 | `QUOTE_REQUESTS` | طلبات التسعير | يمثل طلب تسعير تأميني واحد. |
 | `QUOTE_RISK_ITEMS` | عناصر مخاطر التسعير | يحفظ المركبات أو الأشخاص المطلوب تسعيرهم. |
-| `QUOTE_CONSENTS` | موافقات طلب التسعير | يثبت موافقات العميل المستخدمة في الطلب. |
 | `QUOTE_OFFERS` | عروض التسعير | يحفظ نسخة ثابتة من عرض الـAPI الخارجي. |
 | `QUOTE_OFFER_LINES` | بنود عرض التسعير | يفصل القسط والخصم والضريبة والرسوم. |
 | `QUOTE_OFFER_COVERAGES` | تغطيات عرض التسعير | يحفظ التغطيات التي أعادها الـAPI. |

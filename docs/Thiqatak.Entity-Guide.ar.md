@@ -24,7 +24,6 @@
 | `PARTY_CONTACTS` | يحفظ الجوال والبريد وواتساب. | يتبع `PARTIES`. |
 | `PARTY_ADDRESSES` | يحفظ العنوان الوطني والمدينة. | يتبع `PARTIES`. |
 | `PARTY_BANK_ACCOUNTS` | يحفظ الآيبان وحالة التحقق. | يتبع `PARTIES`. ويُستخدم للاسترداد. |
-| `PARTY_CONSENTS` | يسجل موافقات العميل القانونية. | يتبع `PARTIES`. وتستخدمه `QUOTE_CONSENTS`. |
 | `IDENTITY_VERIFICATIONS` | يسجل نتيجة التحقق من الهوية. | يتبع `PARTIES`. ويرتبط بمزود تحقق خارجي. |
 
 ## 2. المنتجات وطلبات التسعير
@@ -38,7 +37,6 @@
 | `ADDON_DEFINITIONS` | يعرف أنواع الخدمات الإضافية. | يتبع `INSURANCE_PRODUCTS`. ويصف `QUOTE_OFFER_ADDONS`. |
 | `QUOTE_REQUESTS` | يمثل طلب تسعير واحد. | يرتبط بالعميل والمنتج والمخاطر والعروض والاختيار. |
 | `QUOTE_RISK_ITEMS` | يحفظ عناصر الخطر المرسلة للتسعير. | يتبع `QUOTE_REQUESTS`. وقد يشير إلى مركبة أو شخص أو مجموعة. |
-| `QUOTE_CONSENTS` | يثبت موافقات العميل داخل الطلب. | يربط `QUOTE_REQUESTS` مع`PARTY_CONSENTS`. |
 | `QUOTE_OFFERS` | يحفظ نسخة ثابتة من عرض الـAPI. | يتبع `QUOTE_REQUESTS` و`INSURER_PRODUCTS`. وله تفاصيل وتغطيات وإضافات. |
 | `QUOTE_OFFER_LINES` | يحفظ بنود السعر والضريبة والرسوم. | يتبع `QUOTE_OFFERS`. |
 | `QUOTE_OFFER_COVERAGES` | يحفظ التغطيات التي أعادها الـAPI. | يربط `QUOTE_OFFERS` مع`COVERAGE_DEFINITIONS`. |
