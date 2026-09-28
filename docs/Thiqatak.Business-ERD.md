@@ -15,6 +15,7 @@ The model deliberately represents business state, auditability, and integrations
 - ABP Identity, roles, permissions, security logs, tenant management, settings, features, audit logging, and blob storage should be reused instead of rebuilt or represented as Thiqatak business entities.
 - Application notifications use ABP/infrastructure services and are not modeled as business entities.
 - Consent checkboxes remain part of the UI flow, but consent persistence is outside the current scope and has no dedicated business entity for now.
+- Insurance flows use the `InsuranceType` enum (`Motor`, `Medical`, `LeasedVehicle`) instead of product catalog entities. Insurer-specific offers and product codes come from the external API.
 - Organization users, roles, and permissions are managed by ABP Identity. `OrganizationPartyId` is stored as an ABP user extra property or claim. One user belongs to one business organization in the current scope.
 - `IdentityUserId` denotes a reference to an external ABP Identity user. `TenantId` denotes a reference to an external ABP tenant and appears only on business entities that can be tenant-owned.
 
@@ -107,18 +108,14 @@ erDiagram
     }
 ```
 
-## 2. Product catalog and quote lifecycle
+## 2. Quote lifecycle and offer definitions
 
 ```mermaid
 erDiagram
     direction LR
-    INSURERS ||--o{ INSURER_PRODUCTS : offers
-    INSURANCE_PRODUCTS ||--o{ INSURER_PRODUCTS : implemented_by
-    INSURANCE_PRODUCTS ||--o{ COVERAGE_DEFINITIONS : defines
-    INSURANCE_PRODUCTS ||--o{ ADDON_DEFINITIONS : defines
+    INSURERS ||--o{ QUOTE_OFFERS : provides
     QUOTE_REQUESTS ||--|{ QUOTE_RISK_ITEMS : contains
     QUOTE_REQUESTS ||--o{ QUOTE_OFFERS : receives
-    INSURER_PRODUCTS ||--o{ QUOTE_OFFERS : prices
     QUOTE_OFFERS ||--|{ QUOTE_OFFER_LINES : itemizes
     QUOTE_OFFERS ||--o{ QUOTE_OFFER_COVERAGES : includes
     COVERAGE_DEFINITIONS ||--o{ QUOTE_OFFER_COVERAGES : describes
@@ -138,24 +135,9 @@ erDiagram
         decimal Rating
         string Status
     }
-    INSURANCE_PRODUCTS {
-        uuid Id PK
-        string Code UK
-        string ProductType "RetailMotor Medical Lease"
-        string Name
-        bool IsActive
-    }
-    INSURER_PRODUCTS {
-        uuid Id PK
-        uuid InsurerId FK
-        uuid ProductId FK
-        string ExternalProductCode
-        bool IsActive
-        json RatingConfiguration
-    }
     COVERAGE_DEFINITIONS {
         uuid Id PK
-        uuid ProductId FK
+        string InsuranceType "Motor Medical LeasedVehicle"
         string Code
         string Name
         string ValueType
@@ -163,7 +145,7 @@ erDiagram
     }
     ADDON_DEFINITIONS {
         uuid Id PK
-        uuid ProductId FK
+        string InsuranceType "Motor Medical LeasedVehicle"
         string Code
         string Name
         string PricingMode
@@ -173,7 +155,7 @@ erDiagram
         uuid Id PK
         uuid TenantId "external ABP tenant reference; nullable"
         string Number UK
-        uuid ProductId FK
+        string InsuranceType "Motor Medical LeasedVehicle"
         uuid RequesterPartyId FK
         uuid CustomerPartyId FK
         string Channel "Public SME Funder Operations"
@@ -192,7 +174,7 @@ erDiagram
     QUOTE_OFFERS {
         uuid Id PK
         uuid QuoteRequestId FK
-        uuid InsurerProductId FK
+        uuid InsurerId FK
         string Status "Quoted Declined Timeout"
         decimal BasePremium
         decimal DiscountTotal
@@ -292,7 +274,7 @@ erDiagram
         uuid Id PK
         uuid TenantId "external ABP tenant reference; nullable"
         string PolicyNumber UK
-        uuid ProductId FK
+        string InsuranceType "Motor Medical LeasedVehicle"
         uuid InsurerId FK
         uuid QuoteSelectionId FK
         string Status
@@ -923,10 +905,8 @@ erDiagram
     INTEGRATION_PROVIDERS ||--o{ INTEGRATION_INCIDENTS : suffers
     INTEGRATION_INCIDENTS ||--o{ INCIDENT_NOTIFICATIONS : notifies
     INTEGRATION_PROVIDERS ||--o{ INTEGRATION_SUBSCRIPTIONS : contracted_as
-    INSURANCE_PRODUCTS ||--o{ PROMOTIONS : promoted_by
     PROMOTIONS ||--o{ PROMOTION_REDEMPTIONS : redeemed
     QUOTE_REQUESTS ||--o{ PROMOTION_REDEMPTIONS : applies_to
-    INSURANCE_PRODUCTS ||--o{ COMMISSION_RULES : earns
     INSURERS ||--o{ COMMISSION_RULES : constrained_by
     OPERATIONAL_EXCEPTIONS {
         uuid Id PK
@@ -1031,7 +1011,7 @@ erDiagram
     }
     PROMOTIONS {
         uuid Id PK
-        uuid ProductId FK
+        string InsuranceType "Motor Medical LeasedVehicle"
         string Code UK
         string Name
         string DiscountType
@@ -1051,7 +1031,7 @@ erDiagram
     }
     COMMISSION_RULES {
         uuid Id PK
-        uuid ProductId FK
+        string InsuranceType "Motor Medical LeasedVehicle"
         uuid InsurerId FK "nullable for product default"
         decimal Rate
         datetime EffectiveFrom
@@ -1064,8 +1044,8 @@ erDiagram
 | Aggregate root | Owned children | Important invariant |
 |---|---|---|
 | `Funder` | `FunderSettings`, `FunderInsurer` | One funder per tenant; enabled insurers are tenant-specific. |
-| `Party` | contacts, addresses, bank accounts, consents | National/unified identifiers are unique within the applicable business scope; sensitive values are encrypted. |
-| `QuoteRequest` | risk items, consents, offers, offer lines, selection, signature, status history, pricing snapshots | Once an offer is received, its commercial values are immutable. Selection references exactly one successful offer. |
+| `Party` | contacts, addresses, bank accounts | National/unified identifiers are unique within the applicable business scope; sensitive values are encrypted. |
+| `QuoteRequest` | risk items, offers, offer lines, selection, signature, status history, pricing snapshots | Once an offer is received, its commercial values are immutable. Selection references exactly one successful offer. |
 | `Policy` | parties, assets, coverages, add-ons, documents, status history | Issuance requires a selected valid offer and successful/authorized payment path. Historical policy terms never change in place. |
 | `PolicyEndorsement` | endorsement lines and product-specific member/service changes | An endorsement is applied atomically and creates its invoice or credit note. |
 | `Invoice` | invoice lines and installments | Totals equal lines plus tax; issued invoices are not edited, only credited. |
@@ -1131,7 +1111,7 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 
 | التصنيف | الكيانات |
 |---|---|
-| كيانات مشتركة بين جميع المسارات | `PARTIES`, `CLIENTS`, `ORGANIZATIONS`, `PARTY_CONTACTS`, `PARTY_ADDRESSES`, `PARTY_BANK_ACCOUNTS`, `IDENTITY_VERIFICATIONS`, `INSURERS`, `INSURANCE_PRODUCTS`, `INSURER_PRODUCTS`, `COVERAGE_DEFINITIONS`, `ADDON_DEFINITIONS`, `QUOTE_REQUESTS`, `QUOTE_RISK_ITEMS`, `QUOTE_OFFERS`, `QUOTE_OFFER_LINES`, `QUOTE_OFFER_COVERAGES`, `QUOTE_OFFER_ADDONS`, `QUOTE_SELECTIONS`, `QUOTE_SIGNATURES`, `QUOTE_STATUS_HISTORY`, `PRICING_SNAPSHOTS`, `POLICIES`, `POLICY_PARTIES`, `POLICY_ASSETS`, `POLICY_COVERAGES`, `POLICY_ADDONS`, `POLICY_DOCUMENTS`, `POLICY_STATUS_HISTORY`, `POLICY_ENDORSEMENTS`, `ENDORSEMENT_LINES`, `INVOICES`, `INVOICE_LINES`, `PAYMENTS`, `PAYMENT_ATTEMPTS`, `INSTALLMENTS`, `CREDIT_NOTES`, `REFUNDS`, `CLAIMS`, `CLAIM_DOCUMENTS`, `CLAIM_STATUS_HISTORY` |
+| كيانات مشتركة بين جميع المسارات | `PARTIES`, `CLIENTS`, `ORGANIZATIONS`, `PARTY_CONTACTS`, `PARTY_ADDRESSES`, `PARTY_BANK_ACCOUNTS`, `IDENTITY_VERIFICATIONS`, `INSURERS`, `COVERAGE_DEFINITIONS`, `ADDON_DEFINITIONS`, `QUOTE_REQUESTS`, `QUOTE_RISK_ITEMS`, `QUOTE_OFFERS`, `QUOTE_OFFER_LINES`, `QUOTE_OFFER_COVERAGES`, `QUOTE_OFFER_ADDONS`, `QUOTE_SELECTIONS`, `QUOTE_SIGNATURES`, `QUOTE_STATUS_HISTORY`, `PRICING_SNAPSHOTS`, `POLICIES`, `POLICY_PARTIES`, `POLICY_ASSETS`, `POLICY_COVERAGES`, `POLICY_ADDONS`, `POLICY_DOCUMENTS`, `POLICY_STATUS_HISTORY`, `POLICY_ENDORSEMENTS`, `ENDORSEMENT_LINES`, `INVOICES`, `INVOICE_LINES`, `PAYMENTS`, `PAYMENT_ATTEMPTS`, `INSTALLMENTS`, `CREDIT_NOTES`, `REFUNDS`, `CLAIMS`, `CLAIM_DOCUMENTS`, `CLAIM_STATUS_HISTORY` |
 | تأمين المركبات | `VEHICLE_MAKES`, `VEHICLE_MODELS`, `VEHICLE_CODE_MAPPINGS`, `VEHICLES`, `VEHICLE_REGISTRATIONS`, `VEHICLE_PARTY_ROLES`, `MOTOR_QUOTE_DETAILS`, `MOTOR_QUOTE_DRIVERS`, `POLICY_VEHICLES` |
 | التأمين الطبي | `ORGANIZATION_MEMBERS`, `MEDICAL_PLAN_CLASSES`, `MEDICAL_CLASS_BENEFITS`, `MEDICAL_QUOTE_DETAILS`, `MEDICAL_QUOTE_MEMBERS`, `DISCLOSURE_QUESTIONS`, `MEDICAL_DISCLOSURES`, `DISCLOSURE_ANSWERS`, `DISCLOSURE_PERSONS`, `UNDERWRITING_DECISIONS`, `MEDICAL_POLICY_MEMBERS`, `MEDICAL_PROVIDERS`, `MEDICAL_NETWORKS`, `NETWORK_CLASS_ACCESS`, `NETWORK_PROVIDER_MEMBERSHIPS`, `MEDICAL_ENDORSEMENT_MEMBERS` |
 | المركبات المؤجرة | `FUNDERS`, `FUNDER_SETTINGS`, `FUNDER_INSURERS`, `FINANCING_CONTRACTS`, `LEASE_QUOTE_DETAILS`, `LEASE_YEAR_PROJECTIONS`, `LEASE_OFFER_YEARS`, `CONTRACT_POLICY_YEARS`, `INSURANCE_COLLECTIONS`, `RENEWAL_BATCHES`, `RENEWAL_ITEMS`, `RENEWAL_ITEM_OFFERS`, `RENEWAL_APPROVALS`, `LESSEE_SERVICE_PURCHASES` |
@@ -1150,8 +1130,6 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 | `PARTY_BANK_ACCOUNTS` | الحسابات البنكية للأطراف | يحفظ الآيبان وحالة التحقق منه. |
 | `IDENTITY_VERIFICATIONS` | عمليات التحقق من الهوية | يسجل نتائج التحقق من مزود خارجي. |
 | `INSURERS` | شركات التأمين | مرجع تقني لاسم شركة التأمين وصورتها. |
-| `INSURANCE_PRODUCTS` | منتجات التأمين | يعرف أنواع منتجات التأمين المتاحة. |
-| `INSURER_PRODUCTS` | منتجات شركات التأمين | يربط منتج المنصة بكود المنتج الخارجي. |
 | `COVERAGE_DEFINITIONS` | تعريفات التغطيات | يعرف أنواع التغطيات الخاصة بكل منتج. |
 | `ADDON_DEFINITIONS` | تعريفات الخدمات الإضافية | يعرف أنواع الإضافات الممكنة للمنتج. |
 | `QUOTE_REQUESTS` | طلبات التسعير | يمثل طلب تسعير تأميني واحد. |

@@ -31,13 +31,11 @@
 | الكيان | الاستخدام | العلاقات |
 |---|---|---|
 | `INSURERS` | مرجع لشركة التأمين. يعرض الاسم والصورة فقط. | يرتبط بالعروض والوثائق والشبكات. |
-| `INSURANCE_PRODUCTS` | يعرف أنواع منتجات التأمين. | يرتبط بالتغطيات والإضافات وطلبات التسعير. |
-| `INSURER_PRODUCTS` | يربط كود منتج الـAPI بالشركة والمنتج. | يربط `INSURERS` مع`INSURANCE_PRODUCTS`. |
-| `COVERAGE_DEFINITIONS` | يعرف أسماء التغطيات للعرض. | يتبع `INSURANCE_PRODUCTS`. ويصف `QUOTE_OFFER_COVERAGES`. |
-| `ADDON_DEFINITIONS` | يعرف أنواع الخدمات الإضافية. | يتبع `INSURANCE_PRODUCTS`. ويصف `QUOTE_OFFER_ADDONS`. |
+| `COVERAGE_DEFINITIONS` | يعرف أسماء التغطيات للعرض حسب `InsuranceType`. | يصف `QUOTE_OFFER_COVERAGES`. |
+| `ADDON_DEFINITIONS` | يعرف أنواع الخدمات الإضافية حسب `InsuranceType`. | يصف `QUOTE_OFFER_ADDONS`. |
 | `QUOTE_REQUESTS` | يمثل طلب تسعير واحد. | يرتبط بالعميل والمنتج والمخاطر والعروض والاختيار. |
 | `QUOTE_RISK_ITEMS` | يحفظ عناصر الخطر المرسلة للتسعير. | يتبع `QUOTE_REQUESTS`. وقد يشير إلى مركبة أو شخص أو مجموعة. |
-| `QUOTE_OFFERS` | يحفظ نسخة ثابتة من عرض الـAPI. | يتبع `QUOTE_REQUESTS` و`INSURER_PRODUCTS`. وله تفاصيل وتغطيات وإضافات. |
+| `QUOTE_OFFERS` | يحفظ نسخة ثابتة من عرض الـAPI. | يتبع `QUOTE_REQUESTS` ويرتبط مباشرة بـ`INSURERS`. وله تفاصيل وتغطيات وإضافات. |
 | `QUOTE_OFFER_LINES` | يحفظ بنود السعر والضريبة والرسوم. | يتبع `QUOTE_OFFERS`. |
 | `QUOTE_OFFER_COVERAGES` | يحفظ التغطيات التي أعادها الـAPI. | يربط `QUOTE_OFFERS` مع`COVERAGE_DEFINITIONS`. |
 | `QUOTE_OFFER_ADDONS` | يحفظ الإضافات التي أعادها الـAPI. | يربط `QUOTE_OFFERS` مع`ADDON_DEFINITIONS`. |
@@ -138,9 +136,9 @@
 | `INTEGRATION_INCIDENTS` | يسجل عطلًا عند مزود خارجي. | يتبع `INTEGRATION_PROVIDERS`. وله إشعارات حادث. |
 | `INCIDENT_NOTIFICATIONS` | يسجل من تم إشعاره بالعطل. | يتبع `INTEGRATION_INCIDENTS`. |
 | `INTEGRATION_SUBSCRIPTIONS` | يحفظ العقد أو الاشتراك مع مزود التكامل. | يتبع `INTEGRATION_PROVIDERS`. |
-| `PROMOTIONS` | يعرف حملة محلية للمنصة فقط. | يتبع `INSURANCE_PRODUCTS`. ولا يكرر عروض شركة التأمين. |
+| `PROMOTIONS` | يعرف حملة محلية للمنصة فقط. | يحدد مسارها بواسطة `InsuranceType`. ولا يكرر عروض شركة التأمين. |
 | `PROMOTION_REDEMPTIONS` | يسجل استخدام الحملة المحلية. | يربط `PROMOTIONS` مع`QUOTE_REQUESTS`. |
-| `COMMISSION_RULES` | يحدد عمولة الوسيط حسب المنتج. | يتبع `INSURANCE_PRODUCTS`. وقد يقيد بـ`INSURERS`. |
+| `COMMISSION_RULES` | يحدد عمولة الوسيط حسب `InsuranceType`. | قد يقيد بـ`INSURERS`. |
 
 ## ملاحظات العلاقات
 
