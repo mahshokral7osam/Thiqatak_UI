@@ -20,7 +20,6 @@ The model deliberately represents business state, auditability, and integrations
 ```mermaid
 erDiagram
     direction LR
-    PARTIES ||--o| PERSONS : specializes
     PARTIES ||--o| ORGANIZATIONS : specializes
     PARTIES ||--o| CLIENTS : registered_as
     ORGANIZATIONS ||--o{ ORGANIZATION_USER_MEMBERSHIPS : grants_access
@@ -31,6 +30,19 @@ erDiagram
     PARTIES ||--o{ IDENTITY_VERIFICATIONS : verifies
     FUNDERS }o--|| ORGANIZATIONS : legal_party
 
+    PARTIES {
+        uuid Id PK
+        uuid TenantId "external ABP tenant reference; nullable"
+        string PartyType "Person or Organization"
+        string DisplayName
+        string NationalId UK "required when PartyType is Person"
+        date BirthDate "nullable; person only"
+        string BirthCalendar "nullable; person only"
+        string Gender "nullable; person only"
+        string Nationality "nullable; person only"
+        string Status
+        string ConcurrencyStamp
+    }
     CLIENTS {
         uuid Id PK
         uuid PartyId FK, UK
@@ -40,31 +52,6 @@ erDiagram
         string Status
         datetime LastVerifiedAt
     }
-    FUNDERS {
-        uuid Id PK
-        uuid TenantId UK "external ABP tenant reference; required"
-        uuid OrganizationPartyId FK, UK
-        string Code UK
-        string Subdomain UK
-        string Status
-    }
-    PARTIES {
-        uuid Id PK
-        uuid TenantId "external ABP tenant reference; nullable"
-        string PartyType "Person or Organization"
-        string DisplayName
-        string Status
-        string ConcurrencyStamp
-    }
-    PERSONS {
-        uuid PartyId PK, FK
-        string NationalId UK
-        string FullName
-        date BirthDate
-        string BirthCalendar
-        string Gender
-        string Nationality
-    }
     ORGANIZATIONS {
         uuid PartyId PK, FK
         string UnifiedNumber UK
@@ -72,6 +59,14 @@ erDiagram
         string VatNumber
         string ActivityCode
         string SizeClass
+    }
+    FUNDERS {
+        uuid Id PK
+        uuid TenantId UK "external ABP tenant reference; required"
+        uuid OrganizationPartyId FK, UK
+        string Code UK
+        string Subdomain UK
+        string Status
     }
     ORGANIZATION_USER_MEMBERSHIPS {
         uuid Id PK
@@ -515,7 +510,7 @@ erDiagram
     QUOTE_REQUESTS ||--o| MOTOR_QUOTE_DETAILS : describes
     MOTOR_QUOTE_DETAILS }o--|| VEHICLES : quotes
     MOTOR_QUOTE_DETAILS ||--o{ MOTOR_QUOTE_DRIVERS : includes
-    PERSONS ||--o{ MOTOR_QUOTE_DRIVERS : drives
+    PARTIES ||--o{ MOTOR_QUOTE_DRIVERS : drives_person_only
     ORGANIZATIONS ||--o{ FLEETS : owns
     FLEETS ||--o{ FLEET_VEHICLES : contains
     VEHICLES ||--o{ FLEET_VEHICLES : joins
@@ -613,7 +608,7 @@ erDiagram
     FLEET_QUOTE_DETAILS {
         uuid QuoteRequestId PK, FK
         uuid FleetId FK
-        uuid ContactPersonId FK
+        uuid ContactPartyId FK "PartyType must be Person"
         date RequestedStartDate
         string RepairType
         decimal Deductible
@@ -648,7 +643,7 @@ erDiagram
 erDiagram
     direction LR
     ORGANIZATIONS ||--o{ ORGANIZATION_MEMBERS : employs_or_sponsors
-    PERSONS ||--o{ ORGANIZATION_MEMBERS : represents
+    PARTIES ||--o{ ORGANIZATION_MEMBERS : represents_person_only
     ORGANIZATION_MEMBERS ||--o{ ORGANIZATION_MEMBERS : sponsors_dependent
     MEDICAL_PLAN_CLASSES ||--o{ MEDICAL_CLASS_BENEFITS : defines
     QUOTE_REQUESTS ||--o| MEDICAL_QUOTE_DETAILS : describes
@@ -659,10 +654,10 @@ erDiagram
     MEDICAL_DISCLOSURES ||--|{ DISCLOSURE_ANSWERS : answers
     DISCLOSURE_QUESTIONS ||--o{ DISCLOSURE_ANSWERS : asks
     DISCLOSURE_ANSWERS ||--o{ DISCLOSURE_PERSONS : concerns
-    PERSONS ||--o{ DISCLOSURE_PERSONS : disclosed_for
+    PARTIES ||--o{ DISCLOSURE_PERSONS : disclosed_for_person_only
     MEDICAL_DISCLOSURES ||--o| UNDERWRITING_DECISIONS : reviewed_by
     POLICIES ||--o{ MEDICAL_POLICY_MEMBERS : enrolls
-    PERSONS ||--o{ MEDICAL_POLICY_MEMBERS : insured_member
+    PARTIES ||--o{ MEDICAL_POLICY_MEMBERS : insured_member_person_only
     MEDICAL_PLAN_CLASSES ||--o{ MEDICAL_POLICY_MEMBERS : receives_class
     INSURERS ||--o{ MEDICAL_NETWORKS : publishes
     MEDICAL_NETWORKS ||--o{ NETWORK_CLASS_ACCESS : exposes
@@ -670,7 +665,7 @@ erDiagram
     MEDICAL_NETWORKS ||--o{ NETWORK_PROVIDER_MEMBERSHIPS : includes
     MEDICAL_PROVIDERS ||--o{ NETWORK_PROVIDER_MEMBERSHIPS : joins
     POLICY_ENDORSEMENTS ||--o{ MEDICAL_ENDORSEMENT_MEMBERS : changes
-    PERSONS ||--o{ MEDICAL_ENDORSEMENT_MEMBERS : subject
+    PARTIES ||--o{ MEDICAL_ENDORSEMENT_MEMBERS : subject_person_only
 
     ORGANIZATION_MEMBERS {
         uuid Id PK
@@ -1221,11 +1216,10 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 
 | Entity name (English) | الاسم العربي | الاستخدام |
 |---|---|---|
+| `PARTIES` | الأطراف | يمثل شخصًا أو منشأة، ويحفظ بيانات الشخص عندما يكون النوع `Person`. |
 | `CLIENTS` | العملاء | يمثل العميل الفرد أو المنشأة ويربطه بحساب الدخول عند الحاجة. |
-| `FUNDERS` | جهات التمويل | يمثل جهة التمويل المستأجرة للمنصة. |
-| `PARTIES` | الأطراف | يمثل شخصًا أو منشأة بهوية موحدة. |
-| `PERSONS` | الأشخاص | يحفظ بيانات الشخص الطبيعية. |
 | `ORGANIZATIONS` | المنشآت | يحفظ بيانات المنشأة القانونية. |
+| `FUNDERS` | جهات التمويل | يمثل جهة التمويل المستأجرة للمنصة. |
 | `ORGANIZATION_USER_MEMBERSHIPS` | عضويات مستخدمي المنشآت | يحدد مستخدمي المنشأة وأدوارهم. |
 | `PARTY_CONTACTS` | وسائل اتصال الأطراف | يحفظ الجوال والبريد وواتساب. |
 | `PARTY_ADDRESSES` | عناوين الأطراف | يحفظ العنوان الوطني والمدينة. |

@@ -17,11 +17,10 @@
 
 | الكيان | الاستخدام | العلاقات |
 |---|---|---|
+| `PARTIES` | يمثل شخصًا أو منشأة بشكل موحد. ويحفظ بيانات الشخص عندما يكون النوع `Person`. | أصل لـ`ORGANIZATIONS`. ويرتبط بالعملاء والسائقين والأعضاء وبيانات الاتصال والعناوين والحسابات. |
 | `CLIENTS` | يمثل العميل الفرد أو المنشأة. | يرتبط بـ`PARTIES`. وقد يرتبط بحساب مستخدم ABP. |
-| `FUNDERS` | يمثل جهة التمويل المستأجرة للمنصة. | يرتبط بـ`ORGANIZATIONS` و`FUNDER_SETTINGS` والعقود والتجديدات. |
-| `PARTIES` | يمثل شخصًا أو منشأة بشكل موحد. | أصل لـ`PERSONS` و`ORGANIZATIONS`. ويرتبط ببيانات الاتصال والعناوين والحسابات. |
-| `PERSONS` | يحفظ بيانات الشخص الأساسية. | يتخصص من`PARTIES`. ويرتبط بالمستخدمين والسائقين والأعضاء الطبيين. |
 | `ORGANIZATIONS` | يحفظ بيانات المنشأة القانونية. | يتخصص من`PARTIES`. ويرتبط بجهات التمويل والعضويات والأساطيل. |
+| `FUNDERS` | يمثل جهة التمويل المستأجرة للمنصة. | يرتبط بـ`ORGANIZATIONS` و`FUNDER_SETTINGS` والعقود والتجديدات. |
 | `ORGANIZATION_USER_MEMBERSHIPS` | يحدد مستخدمي المنشأة وأدوارهم. | يتبع `ORGANIZATIONS`. ويشير إلى مستخدم ABP. |
 | `PARTY_CONTACTS` | يحفظ الجوال والبريد وواتساب. | يتبع `PARTIES`. |
 | `PARTY_ADDRESSES` | يحفظ العنوان الوطني والمدينة. | يتبع `PARTIES`. |
@@ -85,7 +84,7 @@
 | `VEHICLE_REGISTRATIONS` | يحفظ بيانات اللوحة والتسجيل عبر الزمن. | يتبع `VEHICLES`. |
 | `VEHICLE_PARTY_ROLES` | يحدد المالك والمستخدم والمستأجر. | يربط `VEHICLES` مع`PARTIES`. |
 | `MOTOR_QUOTE_DETAILS` | يحفظ تفاصيل طلب تأمين مركبة فردية. | يتبع `QUOTE_REQUESTS`. ويرتبط بـ`VEHICLES` والسائقين. |
-| `MOTOR_QUOTE_DRIVERS` | يحفظ السائقين ونسب القيادة داخل الطلب. | يتبع `MOTOR_QUOTE_DETAILS`. ويرتبط بـ`PERSONS`. |
+| `MOTOR_QUOTE_DRIVERS` | يحفظ السائقين ونسب القيادة داخل الطلب. | يتبع `MOTOR_QUOTE_DETAILS`. ويرتبط بطرف نوعه `Person`. |
 | `FLEETS` | يمثل أسطول مركبات لمنشأة. | يتبع `ORGANIZATIONS`. ويحتوي مركبات الأسطول. |
 | `FLEET_VEHICLES` | يحدد عضوية المركبة في الأسطول. | يربط `FLEETS` مع`VEHICLES`. |
 | `FLEET_QUOTE_DETAILS` | يحفظ بيانات طلب تسعير الأسطول. | يتبع `QUOTE_REQUESTS`. ويحتوي عناصر التسعير. |
@@ -96,7 +95,7 @@
 
 | الكيان | الاستخدام | العلاقات |
 |---|---|---|
-| `ORGANIZATION_MEMBERS` | يمثل موظفًا أو تابعًا داخل المنشأة. | يربط `ORGANIZATIONS` مع`PERSONS`. وقد يشير إلى عضو تابع. |
+| `ORGANIZATION_MEMBERS` | يمثل موظفًا أو تابعًا داخل المنشأة. | يربط `ORGANIZATIONS` مع طرف نوعه `Person`. وقد يشير إلى عضو تابع. |
 | `MEDICAL_PLAN_CLASSES` | يعرف فئات التغطية الطبية. | يرتبط بالمزايا والأعضاء والشبكات. |
 | `MEDICAL_CLASS_BENEFITS` | يحدد مزايا كل فئة طبية. | يتبع `MEDICAL_PLAN_CLASSES`. |
 | `MEDICAL_QUOTE_DETAILS` | يحفظ بيانات طلب التأمين الطبي. | يتبع `QUOTE_REQUESTS`. ويحتوي الأعضاء والإفصاح. |
@@ -104,14 +103,14 @@
 | `DISCLOSURE_QUESTIONS` | يعرف أسئلة الإفصاح الطبي. | ترتبط بها`DISCLOSURE_ANSWERS`. |
 | `MEDICAL_DISCLOSURES` | يمثل نموذج إفصاح لطلب طبي. | يتبع `MEDICAL_QUOTE_DETAILS`. وله إجابات وقرار اكتتاب. |
 | `DISCLOSURE_ANSWERS` | يحفظ إجابة سؤال طبي. | يربط `MEDICAL_DISCLOSURES` مع`DISCLOSURE_QUESTIONS`. |
-| `DISCLOSURE_PERSONS` | يحدد الأشخاص المتأثرين بالإجابة. | يربط `DISCLOSURE_ANSWERS` مع`PERSONS`. |
+| `DISCLOSURE_PERSONS` | يحدد الأشخاص المتأثرين بالإجابة. | يربط `DISCLOSURE_ANSWERS` مع طرف نوعه `Person`. |
 | `UNDERWRITING_DECISIONS` | يحفظ قبول أو رفض أو تحميل طبي. | يتبع `MEDICAL_DISCLOSURES`. |
-| `MEDICAL_POLICY_MEMBERS` | يسجل الأعضاء المؤمن عليهم فعليًا. | يربط `POLICIES` مع`PERSONS` و`MEDICAL_PLAN_CLASSES`. |
+| `MEDICAL_POLICY_MEMBERS` | يسجل الأعضاء المؤمن عليهم فعليًا. | يربط `POLICIES` مع طرف نوعه `Person` ومع `MEDICAL_PLAN_CLASSES`. |
 | `MEDICAL_PROVIDERS` | نسخة مرجعية لمقدم خدمة طبية خارجي. | يدخل في عضوية الشبكات الطبية. |
 | `MEDICAL_NETWORKS` | نسخة شبكة طبية منشورة من الشركة. | تتبع `INSURERS`. وترتبط بالفئات ومقدمي الخدمة. |
 | `NETWORK_CLASS_ACCESS` | يحدد الفئات المسموح لها باستخدام الشبكة. | يربط `MEDICAL_NETWORKS` مع`MEDICAL_PLAN_CLASSES`. |
 | `NETWORK_PROVIDER_MEMBERSHIPS` | يحدد مقدمي الخدمة داخل الشبكة. | يربط `MEDICAL_NETWORKS` مع`MEDICAL_PROVIDERS`. |
-| `MEDICAL_ENDORSEMENT_MEMBERS` | يسجل أعضاء الملحق الطبي. | يربط `POLICY_ENDORSEMENTS` مع`PERSONS`. |
+| `MEDICAL_ENDORSEMENT_MEMBERS` | يسجل أعضاء الملحق الطبي. | يربط `POLICY_ENDORSEMENTS` مع طرف نوعه `Person`. |
 
 ## 6. التمويل والتأجير
 
