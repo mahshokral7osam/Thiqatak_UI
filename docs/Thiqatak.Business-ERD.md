@@ -6,26 +6,23 @@ The model deliberately represents business state, auditability, and integrations
 
 ## Core decisions
 
-- Every funder is associated one-to-one with an ABP tenant through `Funder.TenantId` (unique and required).
+- Every funder is associated one-to-one with an ABP tenant through `Funder.TenantId` (unique and required), but ABP tables are intentionally outside this business ERD.
 - Funder users, financed-vehicle quotes, contracts, policies, renewals, and funder configuration are tenant-owned and implement `IMultiTenant`.
 - Insurers, insurance products, vehicle reference data, medical provider reference data, and integration-provider definitions are host-owned shared records.
 - Retail customers and SME organizations are parties/business accounts, not ABP tenants. Their rows normally have `TenantId = null`.
 - A person or organization is represented once as a `Party`; product-specific aggregates reference that party instead of duplicating identity, contact, address, or bank data.
 - Quotes and issued policies store immutable pricing and business snapshots. Later catalog or pricing-rule changes must not rewrite historical offers.
-- ABP Identity, roles, permissions, security logs, tenant management, settings, features, audit logging, and blob storage should be reused instead of rebuilt.
+- ABP Identity, roles, permissions, security logs, tenant management, settings, features, audit logging, and blob storage should be reused instead of rebuilt or represented as Thiqatak business entities.
+- `IdentityUserId` denotes a reference to an external ABP Identity user. `TenantId` denotes a reference to an external ABP tenant and appears only on business entities that can be tenant-owned.
 
-## 1. ABP tenancy, identity, and parties
+## 1. Identity integration, tenant references, and parties
 
 ```mermaid
 erDiagram
     direction LR
-    ABP_TENANTS ||--o| FUNDERS : provisions
-    ABP_TENANTS ||--o{ ABP_USERS : contains
-    ABP_USERS ||--o| USER_PROFILES : extends
     PARTIES ||--o| PERSONS : specializes
     PARTIES ||--o| ORGANIZATIONS : specializes
     PERSONS ||--o{ USER_PROFILES : authenticates_as
-    ABP_USERS ||--o{ ORGANIZATION_USER_MEMBERSHIPS : joins
     ORGANIZATIONS ||--o{ ORGANIZATION_USER_MEMBERSHIPS : grants_access
     PARTIES ||--o{ PARTY_CONTACTS : has
     PARTIES ||--o{ PARTY_ADDRESSES : has
@@ -34,28 +31,16 @@ erDiagram
     PARTIES ||--o{ IDENTITY_VERIFICATIONS : verifies
     FUNDERS }o--|| ORGANIZATIONS : legal_party
 
-    ABP_TENANTS {
-        uuid Id PK
-        string Name UK
-        string NormalizedName UK
-    }
-    ABP_USERS {
-        uuid Id PK
-        uuid TenantId FK "nullable for host users"
-        string UserName UK
-        string Email
-        string PhoneNumber
-        bool IsActive
-    }
     USER_PROFILES {
-        uuid UserId PK, FK
+        uuid Id PK
+        uuid IdentityUserId UK "external ABP Identity user reference"
         uuid PersonId FK "nullable for service users"
         string PreferredLanguage
         datetime LastVerifiedAt
     }
     FUNDERS {
         uuid Id PK
-        uuid TenantId FK, UK "exactly one ABP tenant"
+        uuid TenantId UK "external ABP tenant reference; required"
         uuid OrganizationPartyId FK, UK
         string Code UK
         string Subdomain UK
@@ -63,7 +48,7 @@ erDiagram
     }
     PARTIES {
         uuid Id PK
-        uuid TenantId FK "nullable; immutable after creation"
+        uuid TenantId "external ABP tenant reference; nullable"
         string PartyType "Person or Organization"
         string DisplayName
         string Status
@@ -89,7 +74,7 @@ erDiagram
     ORGANIZATION_USER_MEMBERSHIPS {
         uuid Id PK
         uuid OrganizationPartyId FK
-        uuid UserId FK
+        uuid IdentityUserId "external ABP Identity user reference"
         string MembershipRole
         bool IsActive
     }
@@ -125,7 +110,7 @@ erDiagram
         string ConsentType
         string TextVersion
         datetime GrantedAt
-        uuid GrantedByUserId FK
+        uuid GrantedByIdentityUserId "external ABP Identity user reference"
         string EvidenceDocumentId
     }
     IDENTITY_VERIFICATIONS {
@@ -205,7 +190,7 @@ erDiagram
     }
     QUOTE_REQUESTS {
         uuid Id PK
-        uuid TenantId FK "nullable for public and SME business"
+        uuid TenantId "external ABP tenant reference; nullable"
         string Number UK
         uuid ProductId FK
         uuid RequesterPartyId FK
@@ -269,7 +254,7 @@ erDiagram
         uuid QuoteRequestId FK, UK
         uuid QuoteOfferId FK
         string SelectionRule "CustomerChoice or LowestPreNcd"
-        uuid SelectedByUserId FK
+        uuid SelectedByIdentityUserId "external ABP Identity user reference"
         datetime SelectedAt
     }
     QUOTE_SIGNATURES {
@@ -287,7 +272,7 @@ erDiagram
         string FromStatus
         string ToStatus
         string Reason
-        uuid ChangedByUserId FK
+        uuid ChangedByIdentityUserId "external ABP Identity user reference"
         datetime ChangedAt
     }
     PRICING_SNAPSHOTS {
@@ -330,7 +315,7 @@ erDiagram
 
     POLICIES {
         uuid Id PK
-        uuid TenantId FK "nullable for host business"
+        uuid TenantId "external ABP tenant reference; nullable"
         string PolicyNumber UK
         uuid ProductId FK
         uuid InsurerId FK
@@ -396,7 +381,7 @@ erDiagram
     }
     POLICY_ENDORSEMENTS {
         uuid Id PK
-        uuid TenantId FK
+        uuid TenantId "external ABP tenant reference; nullable"
         uuid PolicyId FK
         string Number UK
         string EndorsementType
@@ -415,7 +400,7 @@ erDiagram
     }
     INVOICES {
         uuid Id PK
-        uuid TenantId FK
+        uuid TenantId "external ABP tenant reference; nullable"
         string InvoiceNumber UK
         uuid PolicyId FK "nullable before issuance"
         uuid BillToPartyId FK
@@ -438,7 +423,7 @@ erDiagram
     }
     PAYMENTS {
         uuid Id PK
-        uuid TenantId FK
+        uuid TenantId "external ABP tenant reference; nullable"
         string PaymentReference UK
         uuid PayerPartyId FK
         string Method "Mada Card ApplePay Sadad Bank Tabby Tamara Credit"
@@ -484,7 +469,7 @@ erDiagram
     }
     CLAIMS {
         uuid Id PK
-        uuid TenantId FK
+        uuid TenantId "external ABP tenant reference; nullable"
         string ClaimNumber UK
         uuid PolicyId FK
         uuid ClaimantPartyId FK
@@ -510,7 +495,7 @@ erDiagram
         string ToStatus
         string Note
         datetime ChangedAt
-        uuid ChangedByUserId FK
+        uuid ChangedByIdentityUserId "external ABP Identity user reference"
     }
 ```
 
@@ -563,7 +548,7 @@ erDiagram
     }
     VEHICLES {
         uuid Id PK
-        uuid TenantId FK
+        uuid TenantId "external ABP tenant reference; nullable"
         uuid VehicleModelId FK
         string SerialNumber UK
         string CustomsCardNumber UK
@@ -611,7 +596,7 @@ erDiagram
     }
     FLEETS {
         uuid Id PK
-        uuid TenantId FK
+        uuid TenantId "external ABP tenant reference; nullable"
         uuid OrganizationPartyId FK
         string Name
         string Status
@@ -832,7 +817,6 @@ erDiagram
 ```mermaid
 erDiagram
     direction LR
-    ABP_TENANTS ||--|| FUNDERS : represents
     FUNDERS ||--|| FUNDER_SETTINGS : configures
     FUNDERS ||--o{ FUNDER_INSURERS : enables
     INSURERS ||--o{ FUNDER_INSURERS : available_to
@@ -866,7 +850,7 @@ erDiagram
     }
     FUNDER_INSURERS {
         uuid Id PK
-        uuid TenantId FK
+        uuid TenantId "external ABP tenant reference; required"
         uuid FunderId FK
         uuid InsurerId FK
         bool IsEnabled
@@ -876,7 +860,7 @@ erDiagram
     }
     FINANCING_CONTRACTS {
         uuid Id PK
-        uuid TenantId FK
+        uuid TenantId "external ABP tenant reference; required"
         uuid FunderId FK
         string ContractNumber UK
         uuid LesseePartyId FK
@@ -935,7 +919,7 @@ erDiagram
     }
     RENEWAL_BATCHES {
         uuid Id PK
-        uuid TenantId FK
+        uuid TenantId "external ABP tenant reference; required"
         uuid FunderId FK
         string Number UK
         int RoundNumber
@@ -969,13 +953,13 @@ erDiagram
         uuid RenewalItemId FK
         string ApprovalType "Vehicle Price"
         bool IsApproved
-        uuid ApprovedByUserId FK
+        uuid ApprovedByIdentityUserId "external ABP Identity user reference"
         datetime ApprovedAt
         string Note
     }
     LESSEE_SERVICE_PURCHASES {
         uuid Id PK
-        uuid TenantId FK
+        uuid TenantId "external ABP tenant reference; required"
         uuid FinancingContractId FK
         uuid AddonDefinitionId FK
         uuid PolicyAddonId FK
@@ -1010,11 +994,9 @@ erDiagram
     QUOTE_REQUESTS ||--o{ PROMOTION_REDEMPTIONS : applies_to
     INSURANCE_PRODUCTS ||--o{ COMMISSION_RULES : earns
     INSURERS ||--o{ COMMISSION_RULES : constrained_by
-    ABP_USERS ||--o{ ABP_AUDIT_LOGS : acts
-
     OPERATIONAL_EXCEPTIONS {
         uuid Id PK
-        uuid TenantId FK
+        uuid TenantId "external ABP tenant reference; nullable"
         string Number UK
         string ExceptionType "Identity Vehicle Payment Najm Integration"
         string ReferenceType
@@ -1029,20 +1011,20 @@ erDiagram
         uuid Id PK
         uuid ExceptionId FK
         string ActionType
-        uuid PerformedByUserId FK
+        uuid PerformedByIdentityUserId "external ABP Identity user reference"
         text Result
         datetime PerformedAt
     }
     SUPPORT_TICKETS {
         uuid Id PK
-        uuid TenantId FK
+        uuid TenantId "external ABP tenant reference; nullable"
         string Number UK
         uuid CustomerPartyId FK
         string ProductType
         string TicketType
         string Priority
         string Status
-        uuid OwnerUserId FK
+        uuid OwnerIdentityUserId "external ABP Identity user reference"
         datetime OpenedAt
         datetime ClosedAt
     }
@@ -1050,7 +1032,7 @@ erDiagram
         uuid Id PK
         uuid TicketId FK
         string ActivityType
-        uuid ActorUserId FK
+        uuid ActorIdentityUserId "external ABP Identity user reference"
         text Body
         datetime CreatedAt
     }
@@ -1077,7 +1059,7 @@ erDiagram
     }
     INTEGRATION_CALLS {
         uuid Id PK
-        uuid TenantId FK
+        uuid TenantId "external ABP tenant reference; nullable"
         uuid EndpointId FK
         string CorrelationId UK
         string ReferenceType
@@ -1115,7 +1097,7 @@ erDiagram
     }
     NOTIFICATIONS {
         uuid Id PK
-        uuid TenantId FK
+        uuid TenantId "external ABP tenant reference; nullable"
         uuid RecipientPartyId FK
         string TemplateCode
         string ReferenceType
@@ -1160,16 +1142,6 @@ erDiagram
         decimal Rate
         datetime EffectiveFrom
         datetime EffectiveTo
-    }
-    ABP_AUDIT_LOGS {
-        uuid Id PK
-        uuid TenantId FK
-        uuid UserId FK
-        string Url
-        string HttpMethod
-        int HttpStatusCode
-        datetime ExecutionTime
-        int ExecutionDuration
     }
 ```
 
