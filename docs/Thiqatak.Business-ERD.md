@@ -150,7 +150,7 @@ erDiagram
     INSURANCE_PRODUCTS {
         uuid Id PK
         string Code UK
-        string ProductType "RetailMotor Medical Fleet Lease Travel Property"
+        string ProductType "RetailMotor Medical Lease"
         string Name
         bool IsActive
     }
@@ -329,7 +329,7 @@ erDiagram
     POLICY_ASSETS {
         uuid Id PK
         uuid PolicyId FK
-        string AssetType "Vehicle Fleet MedicalGroup Trip Property"
+        string AssetType "Vehicle MedicalGroup"
         uuid AssetReferenceId
         decimal SumInsured
         string Status
@@ -489,7 +489,7 @@ erDiagram
     }
 ```
 
-## 4. Motor and fleet insurance
+## 4. Retail motor insurance
 
 ```mermaid
 erDiagram
@@ -504,12 +504,6 @@ erDiagram
     MOTOR_QUOTE_DETAILS }o--|| VEHICLES : quotes
     MOTOR_QUOTE_DETAILS ||--o{ MOTOR_QUOTE_DRIVERS : includes
     PARTIES ||--o{ MOTOR_QUOTE_DRIVERS : drives_person_only
-    ORGANIZATIONS ||--o{ FLEETS : owns
-    FLEETS ||--o{ FLEET_VEHICLES : contains
-    VEHICLES ||--o{ FLEET_VEHICLES : joins
-    QUOTE_REQUESTS ||--o| FLEET_QUOTE_DETAILS : describes
-    FLEET_QUOTE_DETAILS ||--|{ FLEET_QUOTE_ITEMS : contains
-    VEHICLES ||--o{ FLEET_QUOTE_ITEMS : prices
     POLICIES ||--o{ POLICY_VEHICLES : covers
     VEHICLES ||--o{ POLICY_VEHICLES : insured_by
 
@@ -583,39 +577,6 @@ erDiagram
         decimal DrivingPercentage
         string LicenseType
         int AccidentCount
-    }
-    FLEETS {
-        uuid Id PK
-        uuid TenantId "external ABP tenant reference; nullable"
-        uuid OrganizationPartyId FK
-        string Name
-        string Status
-    }
-    FLEET_VEHICLES {
-        uuid Id PK
-        uuid FleetId FK
-        uuid VehicleId FK
-        datetime JoinedAt
-        datetime LeftAt
-    }
-    FLEET_QUOTE_DETAILS {
-        uuid QuoteRequestId PK, FK
-        uuid FleetId FK
-        uuid ContactPartyId FK "PartyType must be Person"
-        date RequestedStartDate
-        string RepairType
-        decimal Deductible
-        bool NoClaimsDeclared
-        bool LoyaltyEligible
-    }
-    FLEET_QUOTE_ITEMS {
-        uuid Id PK
-        uuid FleetQuoteRequestId FK
-        uuid VehicleId FK
-        string Purpose
-        string CoverageType
-        string UseType
-        decimal DeclaredValue
     }
     POLICY_VEHICLES {
         uuid Id PK
@@ -1147,7 +1108,6 @@ erDiagram
 | `Invoice` | invoice lines and installments | Totals equal lines plus tax; issued invoices are not edited, only credited. |
 | `Payment` | payment attempts | Provider callbacks are idempotent by provider reference and idempotency key. |
 | `Claim` | documents and status history | Status changes are append-only and required documents are tracked explicitly. |
-| `Fleet` | fleet vehicle memberships | A fleet quote requires at least three active vehicles, matching the prototype rule. |
 | `MedicalDisclosure` | answers and affected persons | Question/version snapshots are frozen when declared; underwriting always refers to that version. |
 | `RenewalBatch` | items, item offers, approvals | Vehicle approval precedes pricing; price approval precedes bulk purchase. |
 | `SupportTicket` | activities and linked references | Every escalation and reassignment is retained. |
@@ -1165,8 +1125,7 @@ erDiagram
 8. Medical SME policies cover employees and dependants. Removing an employee also removes active dependants. Additions and removals are prorated and processed as endorsements.
 9. Medical disclosure answers identify affected members and produce an insurer underwriting decision and possible premium loading.
 10. Medical members have per-member class, premium, CHI upload state, and digital card data. Provider network eligibility depends on insurer network and class.
-11. Fleet quotes require at least three vehicles. Each vehicle retains its own purpose, use, coverage type, declared value, and policy certificate/premium.
-12. Policies, invoices, payments, credit notes, claims, notifications, integration calls, and audit evidence must remain queryable after business cancellation; use statuses instead of destructive deletion.
+11. Policies, invoices, payments, credit notes, claims, notifications, integration calls, and audit evidence must remain queryable after business cancellation; use statuses instead of destructive deletion.
 
 ## ABP implementation notes
 
@@ -1192,10 +1151,9 @@ erDiagram
 6. `Thiqatak.Claims`
 7. `Thiqatak.Motor`
 8. `Thiqatak.Medical`
-9. `Thiqatak.Fleet`
-10. `Thiqatak.Leasing`
-11. `Thiqatak.Operations`
-12. `Thiqatak.Integrations`
+9. `Thiqatak.Leasing`
+10. `Thiqatak.Operations`
+11. `Thiqatak.Integrations`
 
 Start as a modular monolith with one database and separate EF Core schemas per module. The boundaries above can later become services without changing the core ownership model.
 
@@ -1205,6 +1163,16 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 - [Entities and aggregate roots](https://abp.io/docs/latest/framework/architecture/domain-driven-design/entities)
 - [Identity module](https://abp.io/docs/10.6/modules/identity?LanguageCode=en)
 - [Tenant Management module](https://abp.io/docs/10.6/modules/tenant-management?LanguageCode=en)
+
+## Entity classification by insurance flow | تصنيف الكيانات حسب مسار التأمين
+
+| التصنيف | الكيانات |
+|---|---|
+| كيانات مشتركة بين جميع المسارات | `PARTIES`, `CLIENTS`, `ORGANIZATIONS`, `PARTY_CONTACTS`, `PARTY_ADDRESSES`, `PARTY_BANK_ACCOUNTS`, `PARTY_CONSENTS`, `IDENTITY_VERIFICATIONS`, `INSURERS`, `INSURANCE_PRODUCTS`, `INSURER_PRODUCTS`, `COVERAGE_DEFINITIONS`, `ADDON_DEFINITIONS`, `QUOTE_REQUESTS`, `QUOTE_RISK_ITEMS`, `QUOTE_CONSENTS`, `QUOTE_OFFERS`, `QUOTE_OFFER_LINES`, `QUOTE_OFFER_COVERAGES`, `QUOTE_OFFER_ADDONS`, `QUOTE_SELECTIONS`, `QUOTE_SIGNATURES`, `QUOTE_STATUS_HISTORY`, `PRICING_SNAPSHOTS`, `POLICIES`, `POLICY_PARTIES`, `POLICY_ASSETS`, `POLICY_COVERAGES`, `POLICY_ADDONS`, `POLICY_DOCUMENTS`, `POLICY_STATUS_HISTORY`, `POLICY_ENDORSEMENTS`, `ENDORSEMENT_LINES`, `INVOICES`, `INVOICE_LINES`, `PAYMENTS`, `PAYMENT_ATTEMPTS`, `INSTALLMENTS`, `CREDIT_NOTES`, `REFUNDS`, `CLAIMS`, `CLAIM_DOCUMENTS`, `CLAIM_STATUS_HISTORY` |
+| تأمين المركبات | `VEHICLE_MAKES`, `VEHICLE_MODELS`, `VEHICLE_CODE_MAPPINGS`, `VEHICLES`, `VEHICLE_REGISTRATIONS`, `VEHICLE_PARTY_ROLES`, `MOTOR_QUOTE_DETAILS`, `MOTOR_QUOTE_DRIVERS`, `POLICY_VEHICLES` |
+| التأمين الطبي | `ORGANIZATION_MEMBERS`, `MEDICAL_PLAN_CLASSES`, `MEDICAL_CLASS_BENEFITS`, `MEDICAL_QUOTE_DETAILS`, `MEDICAL_QUOTE_MEMBERS`, `DISCLOSURE_QUESTIONS`, `MEDICAL_DISCLOSURES`, `DISCLOSURE_ANSWERS`, `DISCLOSURE_PERSONS`, `UNDERWRITING_DECISIONS`, `MEDICAL_POLICY_MEMBERS`, `MEDICAL_PROVIDERS`, `MEDICAL_NETWORKS`, `NETWORK_CLASS_ACCESS`, `NETWORK_PROVIDER_MEMBERSHIPS`, `MEDICAL_ENDORSEMENT_MEMBERS` |
+| المركبات المؤجرة | `FUNDERS`, `FUNDER_SETTINGS`, `FUNDER_INSURERS`, `FINANCING_CONTRACTS`, `LEASE_QUOTE_DETAILS`, `LEASE_YEAR_PROJECTIONS`, `LEASE_OFFER_YEARS`, `CONTRACT_POLICY_YEARS`, `INSURANCE_COLLECTIONS`, `RENEWAL_BATCHES`, `RENEWAL_ITEMS`, `RENEWAL_ITEM_OFFERS`, `RENEWAL_APPROVALS`, `LESSEE_SERVICE_PURCHASES` |
+| التشغيل والتكاملات المشتركة | `OPERATIONAL_EXCEPTIONS`, `EXCEPTION_ACTIONS`, `SUPPORT_TICKETS`, `TICKET_ACTIVITIES`, `TICKET_LINKS`, `INTEGRATION_PROVIDERS`, `INTEGRATION_ENDPOINTS`, `INTEGRATION_CALLS`, `INTEGRATION_INCIDENTS`, `INCIDENT_NOTIFICATIONS`, `INTEGRATION_SUBSCRIPTIONS`, `NOTIFICATIONS`, `NOTIFICATION_DELIVERIES`, `PROMOTIONS`, `PROMOTION_REDEMPTIONS`, `COMMISSION_RULES` |
 
 ## Entity names and usage | أسماء الكيانات واستخدامها
 
@@ -1262,10 +1230,6 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 | `VEHICLE_PARTY_ROLES` | أدوار الأطراف على المركبات | يحدد المالك والمستخدم والمستأجر. |
 | `MOTOR_QUOTE_DETAILS` | تفاصيل تسعير المركبات | يحفظ بيانات طلب تأمين مركبة فردية. |
 | `MOTOR_QUOTE_DRIVERS` | سائقي طلب المركبة | يحفظ السائقين ونسب القيادة في الطلب. |
-| `FLEETS` | الأساطيل | يمثل أسطول مركبات تابعًا لمنشأة. |
-| `FLEET_VEHICLES` | مركبات الأسطول | يحدد عضوية المركبة داخل الأسطول. |
-| `FLEET_QUOTE_DETAILS` | تفاصيل تسعير الأسطول | يحفظ البيانات العامة لطلب الأسطول. |
-| `FLEET_QUOTE_ITEMS` | عناصر تسعير الأسطول | يحفظ بيانات وتسعير كل مركبة. |
 | `POLICY_VEHICLES` | مركبات الوثيقة | يربط المركبات بالوثائق الصادرة. |
 | `ORGANIZATION_MEMBERS` | أعضاء المنشأة | يمثل موظفًا أو تابعًا داخل المنشأة. |
 | `MEDICAL_PLAN_CLASSES` | فئات الخطط الطبية | يعرف فئات التغطية الطبية. |
