@@ -22,7 +22,7 @@ erDiagram
     direction LR
     PARTIES ||--o| PERSONS : specializes
     PARTIES ||--o| ORGANIZATIONS : specializes
-    PERSONS ||--o{ USER_PROFILES : authenticates_as
+    PARTIES ||--o| CLIENTS : registered_as
     ORGANIZATIONS ||--o{ ORGANIZATION_USER_MEMBERSHIPS : grants_access
     PARTIES ||--o{ PARTY_CONTACTS : has
     PARTIES ||--o{ PARTY_ADDRESSES : has
@@ -31,11 +31,13 @@ erDiagram
     PARTIES ||--o{ IDENTITY_VERIFICATIONS : verifies
     FUNDERS }o--|| ORGANIZATIONS : legal_party
 
-    USER_PROFILES {
+    CLIENTS {
         uuid Id PK
-        uuid IdentityUserId UK "external ABP Identity user reference"
-        uuid PersonId FK "nullable for service users"
+        uuid PartyId FK, UK
+        uuid IdentityUserId UK "external ABP Identity user reference; nullable for organization clients"
+        string CustomerNumber UK
         string PreferredLanguage
+        string Status
         datetime LastVerifiedAt
     }
     FUNDERS {
@@ -1219,7 +1221,7 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 
 | Entity name (English) | الاسم العربي | الاستخدام |
 |---|---|---|
-| `USER_PROFILES` | ملفات المستخدمين | يربط مستخدم ABP بالشخص وإعداداته الأساسية. |
+| `CLIENTS` | العملاء | يمثل العميل الفرد أو المنشأة ويربطه بحساب الدخول عند الحاجة. |
 | `FUNDERS` | جهات التمويل | يمثل جهة التمويل المستأجرة للمنصة. |
 | `PARTIES` | الأطراف | يمثل شخصًا أو منشأة بهوية موحدة. |
 | `PERSONS` | الأشخاص | يحفظ بيانات الشخص الطبيعية. |
