@@ -21,7 +21,6 @@
 | `CLIENTS` | يمثل العميل الفرد أو المنشأة. | يرتبط بـ`PARTIES`. وقد يرتبط بحساب مستخدم ABP. |
 | `ORGANIZATIONS` | يحفظ بيانات المنشأة القانونية. | يتخصص من`PARTIES`. ويرتبط بجهات التمويل والعضويات والأساطيل. |
 | `FUNDERS` | يمثل جهة التمويل المستأجرة للمنصة. | يرتبط بـ`ORGANIZATIONS` و`FUNDER_SETTINGS` والعقود والتجديدات. |
-| `ORGANIZATION_USER_MEMBERSHIPS` | يحدد مستخدمي المنشأة وأدوارهم. | يتبع `ORGANIZATIONS`. ويشير إلى مستخدم ABP. |
 | `PARTY_CONTACTS` | يحفظ الجوال والبريد وواتساب. | يتبع `PARTIES`. |
 | `PARTY_ADDRESSES` | يحفظ العنوان الوطني والمدينة. | يتبع `PARTIES`. |
 | `PARTY_BANK_ACCOUNTS` | يحفظ الآيبان وحالة التحقق. | يتبع `PARTIES`. ويُستخدم للاسترداد. |

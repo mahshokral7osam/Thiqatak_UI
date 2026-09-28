@@ -13,6 +13,7 @@ The model deliberately represents business state, auditability, and integrations
 - A person or organization is represented once as a `Party`; product-specific aggregates reference that party instead of duplicating identity, contact, address, or bank data.
 - Quotes and issued policies store immutable pricing and business snapshots. Later catalog or pricing-rule changes must not rewrite historical offers.
 - ABP Identity, roles, permissions, security logs, tenant management, settings, features, audit logging, and blob storage should be reused instead of rebuilt or represented as Thiqatak business entities.
+- Organization users, roles, and permissions are managed by ABP Identity. `OrganizationPartyId` is stored as an ABP user extra property or claim. One user belongs to one business organization in the current scope.
 - `IdentityUserId` denotes a reference to an external ABP Identity user. `TenantId` denotes a reference to an external ABP tenant and appears only on business entities that can be tenant-owned.
 
 ## 1. Identity integration, tenant references, and parties
@@ -22,7 +23,6 @@ erDiagram
     direction LR
     PARTIES ||--o| ORGANIZATIONS : specializes
     PARTIES ||--o| CLIENTS : registered_as
-    ORGANIZATIONS ||--o{ ORGANIZATION_USER_MEMBERSHIPS : grants_access
     PARTIES ||--o{ PARTY_CONTACTS : has
     PARTIES ||--o{ PARTY_ADDRESSES : has
     PARTIES ||--o{ PARTY_BANK_ACCOUNTS : owns
@@ -67,13 +67,6 @@ erDiagram
         string Code UK
         string Subdomain UK
         string Status
-    }
-    ORGANIZATION_USER_MEMBERSHIPS {
-        uuid Id PK
-        uuid OrganizationPartyId FK
-        uuid IdentityUserId "external ABP Identity user reference"
-        string MembershipRole
-        bool IsActive
     }
     PARTY_CONTACTS {
         uuid Id PK
@@ -1180,6 +1173,7 @@ erDiagram
 - Implement tenant-owned aggregate roots with `IMultiTenant`. ABP automatically applies tenant filtering and uses nullable `TenantId` for host-owned data.
 - Keep `TenantId` immutable. For funder-only aggregates such as `FinancingContract` and `RenewalBatch`, require a non-null tenant in the constructor.
 - Use ABP Identity users/roles/permissions for funder roles (`AccountAdmin`, `Sales`, `Operations`, `Viewer`) and Thiqatak host roles (`CustomerService`, `Operations`, `Finance`, `Compliance`, `Technical`, `OperationsManager`).
+- Use an ABP Identity user extra property or claim named `OrganizationPartyId` for organization users. The current scope allows one business organization per user.
 - Use ABP Organization Units only for internal hierarchy inside a funder tenant if needed; do not confuse an ABP organization unit with the business `Organization` party.
 - Use ABP Blob Storing for identity evidence, quote letters, policies, certificates, invoices, claim attachments, and reports. Persist hashes and document metadata in the domain tables.
 - Use ABP audit/security logs for application and authentication events, while keeping business status-history tables for domain evidence.
@@ -1220,7 +1214,6 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 | `CLIENTS` | العملاء | يمثل العميل الفرد أو المنشأة ويربطه بحساب الدخول عند الحاجة. |
 | `ORGANIZATIONS` | المنشآت | يحفظ بيانات المنشأة القانونية. |
 | `FUNDERS` | جهات التمويل | يمثل جهة التمويل المستأجرة للمنصة. |
-| `ORGANIZATION_USER_MEMBERSHIPS` | عضويات مستخدمي المنشآت | يحدد مستخدمي المنشأة وأدوارهم. |
 | `PARTY_CONTACTS` | وسائل اتصال الأطراف | يحفظ الجوال والبريد وواتساب. |
 | `PARTY_ADDRESSES` | عناوين الأطراف | يحفظ العنوان الوطني والمدينة. |
 | `PARTY_BANK_ACCOUNTS` | الحسابات البنكية للأطراف | يحفظ الآيبان وحالة التحقق منه. |
