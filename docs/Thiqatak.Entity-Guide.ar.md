@@ -140,8 +140,6 @@
 | `INTEGRATION_INCIDENTS` | يسجل عطلًا عند مزود خارجي. | يتبع `INTEGRATION_PROVIDERS`. وله إشعارات حادث. |
 | `INCIDENT_NOTIFICATIONS` | يسجل من تم إشعاره بالعطل. | يتبع `INTEGRATION_INCIDENTS`. |
 | `INTEGRATION_SUBSCRIPTIONS` | يحفظ العقد أو الاشتراك مع مزود التكامل. | يتبع `INTEGRATION_PROVIDERS`. |
-| `NOTIFICATIONS` | يمثل رسالة موجهة لطرف. | يتبع `PARTIES`. وله محاولات توصيل. |
-| `NOTIFICATION_DELIVERIES` | يسجل إرسال الرسالة عبر قناة محددة. | يتبع `NOTIFICATIONS`. |
 | `PROMOTIONS` | يعرف حملة محلية للمنصة فقط. | يتبع `INSURANCE_PRODUCTS`. ولا يكرر عروض شركة التأمين. |
 | `PROMOTION_REDEMPTIONS` | يسجل استخدام الحملة المحلية. | يربط `PROMOTIONS` مع`QUOTE_REQUESTS`. |
 | `COMMISSION_RULES` | يحدد عمولة الوسيط حسب المنتج. | يتبع `INSURANCE_PRODUCTS`. وقد يقيد بـ`INSURERS`. |

@@ -13,6 +13,7 @@ The model deliberately represents business state, auditability, and integrations
 - A person or organization is represented once as a `Party`; product-specific aggregates reference that party instead of duplicating identity, contact, address, or bank data.
 - Quotes and issued policies store immutable pricing and business snapshots. Later catalog or pricing-rule changes must not rewrite historical offers.
 - ABP Identity, roles, permissions, security logs, tenant management, settings, features, audit logging, and blob storage should be reused instead of rebuilt or represented as Thiqatak business entities.
+- Application notifications use ABP/infrastructure services and are not modeled as business entities.
 - Organization users, roles, and permissions are managed by ABP Identity. `OrganizationPartyId` is stored as an ABP user extra property or claim. One user belongs to one business organization in the current scope.
 - `IdentityUserId` denotes a reference to an external ABP Identity user. `TenantId` denotes a reference to an external ABP tenant and appears only on business entities that can be tenant-owned.
 
@@ -938,8 +939,6 @@ erDiagram
     INTEGRATION_PROVIDERS ||--o{ INTEGRATION_INCIDENTS : suffers
     INTEGRATION_INCIDENTS ||--o{ INCIDENT_NOTIFICATIONS : notifies
     INTEGRATION_PROVIDERS ||--o{ INTEGRATION_SUBSCRIPTIONS : contracted_as
-    PARTIES ||--o{ NOTIFICATIONS : receives
-    NOTIFICATIONS ||--|{ NOTIFICATION_DELIVERIES : delivers
     INSURANCE_PRODUCTS ||--o{ PROMOTIONS : promoted_by
     PROMOTIONS ||--o{ PROMOTION_REDEMPTIONS : redeemed
     QUOTE_REQUESTS ||--o{ PROMOTION_REDEMPTIONS : applies_to
@@ -1046,26 +1045,6 @@ erDiagram
         string Status
         string ContractReference
     }
-    NOTIFICATIONS {
-        uuid Id PK
-        uuid TenantId "external ABP tenant reference; nullable"
-        uuid RecipientPartyId FK
-        string TemplateCode
-        string ReferenceType
-        uuid ReferenceId
-        json Payload
-        datetime CreatedAt
-    }
-    NOTIFICATION_DELIVERIES {
-        uuid Id PK
-        uuid NotificationId FK
-        string Channel "SMS WhatsApp Email InApp"
-        string Destination
-        string Status
-        string ProviderReference
-        datetime SentAt
-        datetime DeliveredAt
-    }
     PROMOTIONS {
         uuid Id PK
         uuid ProductId FK
@@ -1125,7 +1104,7 @@ erDiagram
 8. Medical SME policies cover employees and dependants. Removing an employee also removes active dependants. Additions and removals are prorated and processed as endorsements.
 9. Medical disclosure answers identify affected members and produce an insurer underwriting decision and possible premium loading.
 10. Medical members have per-member class, premium, CHI upload state, and digital card data. Provider network eligibility depends on insurer network and class.
-11. Policies, invoices, payments, credit notes, claims, notifications, integration calls, and audit evidence must remain queryable after business cancellation; use statuses instead of destructive deletion.
+11. Policies, invoices, payments, credit notes, claims, integration calls, and audit evidence must remain queryable after business cancellation; use statuses instead of destructive deletion.
 
 ## ABP implementation notes
 
@@ -1172,7 +1151,7 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 | تأمين المركبات | `VEHICLE_MAKES`, `VEHICLE_MODELS`, `VEHICLE_CODE_MAPPINGS`, `VEHICLES`, `VEHICLE_REGISTRATIONS`, `VEHICLE_PARTY_ROLES`, `MOTOR_QUOTE_DETAILS`, `MOTOR_QUOTE_DRIVERS`, `POLICY_VEHICLES` |
 | التأمين الطبي | `ORGANIZATION_MEMBERS`, `MEDICAL_PLAN_CLASSES`, `MEDICAL_CLASS_BENEFITS`, `MEDICAL_QUOTE_DETAILS`, `MEDICAL_QUOTE_MEMBERS`, `DISCLOSURE_QUESTIONS`, `MEDICAL_DISCLOSURES`, `DISCLOSURE_ANSWERS`, `DISCLOSURE_PERSONS`, `UNDERWRITING_DECISIONS`, `MEDICAL_POLICY_MEMBERS`, `MEDICAL_PROVIDERS`, `MEDICAL_NETWORKS`, `NETWORK_CLASS_ACCESS`, `NETWORK_PROVIDER_MEMBERSHIPS`, `MEDICAL_ENDORSEMENT_MEMBERS` |
 | المركبات المؤجرة | `FUNDERS`, `FUNDER_SETTINGS`, `FUNDER_INSURERS`, `FINANCING_CONTRACTS`, `LEASE_QUOTE_DETAILS`, `LEASE_YEAR_PROJECTIONS`, `LEASE_OFFER_YEARS`, `CONTRACT_POLICY_YEARS`, `INSURANCE_COLLECTIONS`, `RENEWAL_BATCHES`, `RENEWAL_ITEMS`, `RENEWAL_ITEM_OFFERS`, `RENEWAL_APPROVALS`, `LESSEE_SERVICE_PURCHASES` |
-| التشغيل والتكاملات المشتركة | `OPERATIONAL_EXCEPTIONS`, `EXCEPTION_ACTIONS`, `SUPPORT_TICKETS`, `TICKET_ACTIVITIES`, `TICKET_LINKS`, `INTEGRATION_PROVIDERS`, `INTEGRATION_ENDPOINTS`, `INTEGRATION_CALLS`, `INTEGRATION_INCIDENTS`, `INCIDENT_NOTIFICATIONS`, `INTEGRATION_SUBSCRIPTIONS`, `NOTIFICATIONS`, `NOTIFICATION_DELIVERIES`, `PROMOTIONS`, `PROMOTION_REDEMPTIONS`, `COMMISSION_RULES` |
+| التشغيل والتكاملات المشتركة | `OPERATIONAL_EXCEPTIONS`, `EXCEPTION_ACTIONS`, `SUPPORT_TICKETS`, `TICKET_ACTIVITIES`, `TICKET_LINKS`, `INTEGRATION_PROVIDERS`, `INTEGRATION_ENDPOINTS`, `INTEGRATION_CALLS`, `INTEGRATION_INCIDENTS`, `INCIDENT_NOTIFICATIONS`, `INTEGRATION_SUBSCRIPTIONS`, `PROMOTIONS`, `PROMOTION_REDEMPTIONS`, `COMMISSION_RULES` |
 
 ## Entity names and usage | أسماء الكيانات واستخدامها
 
@@ -1271,8 +1250,6 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 | `INTEGRATION_INCIDENTS` | حوادث التكامل | يسجل عطلًا عند مزود خارجي. |
 | `INCIDENT_NOTIFICATIONS` | إشعارات حوادث التكامل | يسجل الجهات التي تم إشعارها بالعطل. |
 | `INTEGRATION_SUBSCRIPTIONS` | اشتراكات التكامل | يحفظ عقد أو اشتراك مزود الخدمة. |
-| `NOTIFICATIONS` | الإشعارات | يمثل رسالة موجهة لطرف. |
-| `NOTIFICATION_DELIVERIES` | عمليات توصيل الإشعارات | يسجل الإرسال عبر البريد أو الجوال أو التطبيق. |
 | `PROMOTIONS` | الحملات الترويجية | يعرف حملات المنصة المحلية فقط. |
 | `PROMOTION_REDEMPTIONS` | استخدامات الحملات | يسجل تطبيق حملة على طلب تسعير. |
 | `COMMISSION_RULES` | قواعد العمولات | يحدد عمولة الوسيط حسب المنتج والشركة. |
