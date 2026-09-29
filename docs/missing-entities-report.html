@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تقرير الكيانات المفقودة في تصميم المطور الآخر — ثقة تك</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #004d40;
+      --primary-light: #00695c;
+      --primary-dark: #00251a;
+      --accent: #00bfa5;
+      --gold: #c59b27;
+      --danger: #d32f2f;
+      --danger-bg: #ffebee;
+      --warn: #ed6c02;
+      --warn-bg: #fff4e5;
+      --success: #2e7d32;
+      --success-bg: #e8f5e9;
+      --bg: #f4f7f6;
+      --card-bg: #ffffff;
+      --text: #1a202c;
+      --text-muted: #5a6a85;
+      --border: #e2e8f0;
+      --code-bg: #0f172a;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Cairo', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 0 0 60px 0;
+    }
+
+    header {
+      background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+      color: #fff;
+      padding: 40px 24px 30px;
+      border-bottom: 4px solid var(--accent);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    }
+    .header-container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      background: rgba(0, 191, 165, 0.2);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+    header h1 {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 10px;
+      letter-spacing: -0.5px;
+    }
+    header p {
+      color: #b2dfdb;
+      font-size: 15px;
+      max-width: 800px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 30px auto 0;
+      padding: 0 20px;
+    }
+
+    /* Stats bar */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .stat-card {
+      background: var(--card-bg);
+      padding: 18px 20px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      display: flex;
+      flex-direction: column;
+    }
+    .stat-card .num {
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--primary);
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .stat-card .label {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* Category Section */
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 32px 0 16px;
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--primary-dark);
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 10px;
+    }
+    .section-title .pill {
+      font-size: 13px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-weight: 700;
+      background: var(--primary-light);
+      color: white;
+    }
+
+    /* Entity Cards */
+    .entity-card {
+      background: var(--card-bg);
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      margin-bottom: 24px;
+      box-shadow: 0 3px 12px rgba(0,0,0,0.03);
+      overflow: hidden;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .entity-card:hover {
+      box-shadow: 0 6px 20px rgba(0,0,0,0.07);
+    }
+    .entity-header {
+      padding: 16px 22px;
+      background: #fafbfc;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .entity-header h3 {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--primary-dark);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'JetBrains Mono', 'Cairo', monospace;
+    }
+    .entity-header .ar-title {
+      font-family: 'Cairo', sans-serif;
+      font-size: 14px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .tag {
+      font-size: 12px;
+      padding: 3px 9px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    .tag-critical { background: var(--danger-bg); color: var(--danger); }
+    .tag-warn { background: var(--warn-bg); color: var(--warn); }
+    .tag-success { background: var(--success-bg); color: var(--success); }
+
+    .entity-body {
+      padding: 18px 22px;
+    }
+    .entity-desc {
+      font-size: 14px;
+      color: #334155;
+      margin-bottom: 16px;
+      background: #f8fafc;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border-right: 4px solid var(--accent);
+    }
+    .entity-impact {
+      font-size: 13px;
+      color: #991b1b;
+      background: #fef2f2;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+    }
+
+    /* Table */
+    .table-container {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: right;
+    }
+    th, td {
+      padding: 9px 12px;
+      border-bottom: 1px solid #edf2f7;
+    }
+    th {
+      background: #f1f5f9;
+      color: #475569;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+
+    .col-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      color: #0f172a;
+      direction: ltr;
+      display: inline-block;
+    }
+    .col-type {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #0284c7;
+      background: #e0f2fe;
+      padding: 2px 6px;
+      border-radius: 4px;
+      direction: ltr;
+      display: inline-block;
+    }
+    .col-key {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .key-pk { background: #fef3c7; color: #b45309; }
+    .key-fk { background: #e0e7ff; color: #4338ca; }
+    .key-uk { background: #fce7f3; color: #be185d; }
+
+    footer {
+      text-align: center;
+      margin-top: 50px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-container">
+      <span class="badge">تقرير هندسة البيانات والـ ERD</span>
+      <h1>الكيانات المفقودة في تصميم المطور الآخر (Ain Althiqah)</h1>
+      <p>مقارنة تدقيقية شاملة تفصل الـ 25 كياناً الموجودة في مخطط ثقة تك المعتمد (Thiqatak Business ERD) والمحذوفة في مقترح المطور الآخر، مع حقولها باللغتين العربية والإنجليزية والأثر التشغيلي والقانوني.</p>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="num">59</span>
+        <span class="label">إجمالي كيانات ثقة تك الأصلية</span>
+      </div>
+      <div class="stat-card">
+        <span class="num">36</span>
+        <span class="label">كيانات المطور الآخر (بدون ABP)</span>
+      </div>
+      <div class="stat-card">
+        <span class="num" style="color: var(--danger);">25</span>
+        <span class="label">كياناً مفقوداً في التصميم الآخر</span>
+      </div>
+      <div class="stat-card">
+        <span class="num" style="color: var(--success);">100%</span>
+        <span class="label">تطابق الكيانات مع شاشات الـ UI والاجتماع</span>
+      </div>
+    </div>
+
+    <!-- Group 1 -->
+    <h2 class="section-title">
+      1. ملاحق الوثائق والتعديلات الرسمية (Endorsements)
+      <span class="pill">3 كيانات حاسمة</span>
+    </h2>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>POLICY_ENDORSEMENTS <span class="ar-title">(ملاحق الوثيقة)</span></h3>
+        <span class="tag tag-critical">غيابها يمنع أي تعديل قانوني</span>
+      </div>
+      <div class="entity-body">
+        <div class="entity-desc">يمثل ملحقًا رسميًا لتعديل وثيقة صادرة (إضافة/حذف تغطيات، تغيير أفراد، أو تعديل مالي).</div>
+        <div class="entity-impact"><strong>الأثر:</strong> بدون هذا الجدول لا يمكن في الواقع إصدار أي فاتورة إضافية أو استرداد مالي لموظف تم فصله أو تعيينه بعد إصدار الوثيقة.</div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Column (EN)</th>
+                <th>Type</th>
+                <th>Constraint</th>
+                <th>الاسم والوصف بالعربية (AR)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للملحق</td></tr>
+              <tr><td><span class="col-name">TenantId</span></td><td><span class="col-type">uuid</span></td><td>Nullable</td><td>معرف المستأجر (جهة التمويل إن وجد)</td></tr>
+              <tr><td><span class="col-name">PolicyId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف الوثيقة الأصلية المراد تعديلها</td></tr>
+              <tr><td><span class="col-name">Number</span></td><td><span class="col-type">string</span></td><td><span class="col-key key-uk">UK</span></td><td>رقم الملحق التسلسلي الرسمي</td></tr>
+              <tr><td><span class="col-name">EndorsementType</span></td><td><span class="col-type">string</span></td><td>Required</td><td>نوع الملحق (إضافة أعضاء، إلغاء، ترقية فئة)</td></tr>
+              <tr><td><span class="col-name">EffectiveDate</span></td><td><span class="col-type">date</span></td><td>Required</td><td>تاريخ سريان الملحق الفعلي</td></tr>
+              <tr><td><span class="col-name">Status</span></td><td><span class="col-type">string</span></td><td>Required</td><td>حالة الملحق (Draft, Issued, Settled)</td></tr>
+              <tr><td><span class="col-name">NetAmount</span></td><td><span class="col-type">decimal</span></td><td>Required</td><td>صافي المبلغ المالي للملحق (إضافي أو مسترد)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>ENDORSEMENT_LINES <span class="ar-title">(بنود الملحق)</span></h3>
+        <span class="tag tag-warn">تفصيل مالي وفني</span>
+      </div>
+      <div class="entity-body">
+        <div class="entity-desc">تفصيل البنود الفردية داخل الملحق مع لقطة التغيير (ChangeSnapshot).</div>
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للبند</td></tr>
+              <tr><td><span class="col-name">EndorsementId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف الملحق التابع له</td></tr>
+              <tr><td><span class="col-name">ActionType</span></td><td><span class="col-type">string</span></td><td>Required</td><td>نوع الإجراء (Add, Remove, Modify)</td></tr>
+              <tr><td><span class="col-name">SubjectType</span></td><td><span class="col-type">string</span></td><td>Required</td><td>نوع العنصر المعدل (Member, Vehicle, Addon)</td></tr>
+              <tr><td><span class="col-name">SubjectReferenceId</span></td><td><span class="col-type">uuid</span></td><td>Required</td><td>معرف العنصر في جدوله الأصلي</td></tr>
+              <tr><td><span class="col-name">Amount</span></td><td><span class="col-type">decimal</span></td><td>Required</td><td>الأثر المالي لهذا البند الفردي</td></tr>
+              <tr><td><span class="col-name">ChangeSnapshot</span></td><td><span class="col-type">json</span></td><td>Required</td><td>لقطة مجمدة توضح القيم قبل وبعد التعديل</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>MEDICAL_ENDORSEMENT_MEMBERS <span class="ar-title">(أعضاء الملحق الطبي)</span></h3>
+        <span class="tag tag-critical">أساسي للتأمين الطبي SME</span>
+      </div>
+      <div class="entity-body">
+        <div class="entity-desc">تتبع إضافة موظف/تابع جديد أو حذفه أو ترقية فئته التأمينية أثناء سريان الوثيقة الطبية مع القسط النسبي وتحديث مجلس الضمان (CHI).</div>
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد لعضو الملحق</td></tr>
+              <tr><td><span class="col-name">EndorsementId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف الملحق التابع له</td></tr>
+              <tr><td><span class="col-name">PersonPartyId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف الشخص (الموظف أو التابع)</td></tr>
+              <tr><td><span class="col-name">Action</span></td><td><span class="col-type">string</span></td><td>Required</td><td>نوع التعديل (Add, Remove, ChangeClass)</td></tr>
+              <tr><td><span class="col-name">ClassCode</span></td><td><span class="col-type">string</span></td><td>Required</td><td>فئة التأمين الطبي الجديدة (VIP, A, B, C)</td></tr>
+              <tr><td><span class="col-name">RemovalReason</span></td><td><span class="col-type">string</span></td><td>Nullable</td><td>سبب الحذف (استقالة، وفاة، بلوغ السن القانوني)</td></tr>
+              <tr><td><span class="col-name">ProratedAmount</span></td><td><span class="col-type">decimal</span></td><td>Required</td><td>القسط النسبي المحسوب للمدة المتبقية من الوثيقة</td></tr>
+              <tr><td><span class="col-name">ChiStatus</span></td><td><span class="col-type">string</span></td><td>Required</td><td>حالة تحديث العضو لدى مجلس الضمان الصحي (CHI)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Group 2 -->
+    <h2 class="section-title">
+      2. سجل التدقيق وتتبع مسار الحالات (Audit & Status Histories)
+      <span class="pill">4 كيانات امتثال</span>
+    </h2>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>QUOTE_STATUS_HISTORY <span class="ar-title">(سجل حالات التسعير)</span></h3>
+        <span class="tag tag-warn">تحليل القمع والامتثال</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للسجل</td></tr>
+              <tr><td><span class="col-name">QuoteRequestId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف طلب التسعير</td></tr>
+              <tr><td><span class="col-name">FromStatus</span></td><td><span class="col-type">string</span></td><td>Required</td><td>الحالة السابقة</td></tr>
+              <tr><td><span class="col-name">ToStatus</span></td><td><span class="col-type">string</span></td><td>Required</td><td>الحالة الجديدة (Draft, Quoted, Selected, Expired)</td></tr>
+              <tr><td><span class="col-name">Reason</span></td><td><span class="col-type">string</span></td><td>Nullable</td><td>سبب الانتقال</td></tr>
+              <tr><td><span class="col-name">ChangedByIdentityUserId</span></td><td><span class="col-type">uuid</span></td><td>Nullable</td><td>معرف المستخدم المنفذ</td></tr>
+              <tr><td><span class="col-name">ChangedAt</span></td><td><span class="col-type">datetime</span></td><td>Required</td><td>وقت وتاريخ التغيير بدقة UTC</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>POLICY_STATUS_HISTORY <span class="ar-title">(سجل حالات الوثائق)</span></h3>
+        <span class="tag tag-critical">إلزامي لهيئة التأمين</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للسجل</td></tr>
+              <tr><td><span class="col-name">PolicyId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف الوثيقة الصادرة</td></tr>
+              <tr><td><span class="col-name">FromStatus</span></td><td><span class="col-type">string</span></td><td>Required</td><td>الحالة السابقة</td></tr>
+              <tr><td><span class="col-name">ToStatus</span></td><td><span class="col-type">string</span></td><td>Required</td><td>الحالة الجديدة (Active, Suspended, Cancelled)</td></tr>
+              <tr><td><span class="col-name">Reason</span></td><td><span class="col-type">string</span></td><td>Nullable</td><td>سبب التغيير (نقل ملكية، طلب إلغاء)</td></tr>
+              <tr><td><span class="col-name">ChangedAt</span></td><td><span class="col-type">datetime</span></td><td>Required</td><td>وقت وتاريخ التغيير</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>CLAIM_STATUS_HISTORY <span class="ar-title">(سجل حالات المطالبات)</span></h3>
+        <span class="tag tag-warn">تتبع اتفاقيات الخدمة SLA</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للسجل</td></tr>
+              <tr><td><span class="col-name">ClaimId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف المطالبة التابع لها</td></tr>
+              <tr><td><span class="col-name">FromStatus</span></td><td><span class="col-type">string</span></td><td>Required</td><td>الحالة السابقة للمطالبة</td></tr>
+              <tr><td><span class="col-name">ToStatus</span></td><td><span class="col-type">string</span></td><td>Required</td><td>الحالة الجديدة (Submitted, Approved, Rejected)</td></tr>
+              <tr><td><span class="col-name">Note</span></td><td><span class="col-type">string</span></td><td>Nullable</td><td>ملاحظات موظف المطالبات أو شركة التأمين</td></tr>
+              <tr><td><span class="col-name">ChangedAt</span></td><td><span class="col-type">datetime</span></td><td>Required</td><td>تاريخ ووقت التحديث</td></tr>
+              <tr><td><span class="col-name">ChangedByIdentityUserId</span></td><td><span class="col-type">uuid</span></td><td>Nullable</td><td>معرف الموظف المحدث للحالة</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>EXCEPTION_ACTIONS <span class="ar-title">(إجراءات معالجة الاستثناءات التشغيلية)</span></h3>
+        <span class="tag tag-warn">إثبات تدخل العمليات</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للإجراء</td></tr>
+              <tr><td><span class="col-name">ExceptionId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف الاستثناء التابع له</td></tr>
+              <tr><td><span class="col-name">ActionType</span></td><td><span class="col-type">string</span></td><td>Required</td><td>نوع الإجراء (RetryPayment, ApproveMapping)</td></tr>
+              <tr><td><span class="col-name">PerformedByIdentityUserId</span></td><td><span class="col-type">uuid</span></td><td>Required</td><td>معرف موظف العمليات المنفذ للحل</td></tr>
+              <tr><td><span class="col-name">Result</span></td><td><span class="col-type">text</span></td><td>Required</td><td>النتيجة الفنية والعملياتية للإجراء</td></tr>
+              <tr><td><span class="col-name">PerformedAt</span></td><td><span class="col-type">datetime</span></td><td>Required</td><td>وقت وتاريخ التنفيذ</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Group 3 -->
+    <h2 class="section-title">
+      3. الأطراف والتوقيع والأدوار القانونية (Parties & Signatures)
+      <span class="pill">5 كيانات</span>
+    </h2>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>QUOTE_SIGNATURES <span class="ar-title">(توقيعات وموافقات التسعير)</span></h3>
+        <span class="tag tag-critical">إثبات موافقة العميل القانونية</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للتوقيع</td></tr>
+              <tr><td><span class="col-name">QuoteRequestId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span>, <span class="col-key key-uk">UK</span></td><td>معرف طلب التسعير المعتمد</td></tr>
+              <tr><td><span class="col-name">SignerPartyId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف الطرف الموقع (العميل أو المفوض)</td></tr>
+              <tr><td><span class="col-name">Method</span></td><td><span class="col-type">string</span></td><td>Required</td><td>وسيلة التوقيع (OTP, Digital, Manual)</td></tr>
+              <tr><td><span class="col-name">DocumentId</span></td><td><span class="col-type">string</span></td><td>Nullable</td><td>معرف وثيقة العرض الموقعة</td></tr>
+              <tr><td><span class="col-name">DocumentHash</span></td><td><span class="col-type">string</span></td><td>Required</td><td>البصمة المشفرة (SHA-256) لمنع التلاعب بالعرض</td></tr>
+              <tr><td><span class="col-name">SignedAt</span></td><td><span class="col-type">datetime</span></td><td>Required</td><td>وقت وتاريخ التوقيع بدقة</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>PARTY_CONTACTS <span class="ar-title">(وسائل اتصال الأطراف)</span></h3>
+        <span class="tag tag-warn">دعم قنوات الاتصال المتعددة</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد لوسيلة الاتصال</td></tr>
+              <tr><td><span class="col-name">PartyId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف الشخص أو المنشأة</td></tr>
+              <tr><td><span class="col-name">ContactType</span></td><td><span class="col-type">string</span></td><td>Required</td><td>نوع وسيلة الاتصال (Mobile, Email, WhatsApp)</td></tr>
+              <tr><td><span class="col-name">Value</span></td><td><span class="col-type">string</span></td><td>Required</td><td>القيمة (رقم الجوال أو الإيميل)</td></tr>
+              <tr><td><span class="col-name">IsPrimary</span></td><td><span class="col-type">bool</span></td><td>Required</td><td>هل هي الوسيلة الرئيسية المعتمدة؟</td></tr>
+              <tr><td><span class="col-name">VerifiedAt</span></td><td><span class="col-type">datetime</span></td><td>Nullable</td><td>تاريخ التحقق عبر OTP</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>POLICY_PARTIES <span class="ar-title">(أدوار الأطراف على الوثيقة)</span></h3>
+        <span class="tag tag-warn">تحديد الصفة القانونية</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للدور</td></tr>
+              <tr><td><span class="col-name">PolicyId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف الوثيقة الصادرة</td></tr>
+              <tr><td><span class="col-name">PartyId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف الطرف المعني</td></tr>
+              <tr><td><span class="col-name">Role</span></td><td><span class="col-type">string</span></td><td>Required</td><td>الصفة (Holder, Owner, Insured, Lessee, Beneficiary, Driver)</td></tr>
+              <tr><td><span class="col-name">EffectiveFrom</span></td><td><span class="col-type">datetime</span></td><td>Required</td><td>بداية سريان الصفة</td></tr>
+              <tr><td><span class="col-name">EffectiveTo</span></td><td><span class="col-type">datetime</span></td><td>Nullable</td><td>نهاية سريان الصفة</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>VEHICLE_PARTY_ROLES <span class="ar-title">(أدوار الأطراف على المركبة)</span></h3>
+        <span class="tag tag-warn">تتبع المالك والمستخدم ونقل الملكية</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للعلاقة</td></tr>
+              <tr><td><span class="col-name">VehicleId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف المركبة</td></tr>
+              <tr><td><span class="col-name">PartyId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف الطرف</td></tr>
+              <tr><td><span class="col-name">Role</span></td><td><span class="col-type">string</span></td><td>Required</td><td>الدور على المركبة (Owner, ActualUser, Seller, Buyer)</td></tr>
+              <tr><td><span class="col-name">EffectiveFrom</span></td><td><span class="col-type">datetime</span></td><td>Required</td><td>تاريخ بدء الصفة</td></tr>
+              <tr><td><span class="col-name">EffectiveTo</span></td><td><span class="col-type">datetime</span></td><td>Nullable</td><td>تاريخ انتهاء الصفة</td></tr>
+              <tr><td><span class="col-name">Source</span></td><td><span class="col-type">string</span></td><td>Nullable</td><td>مصدر المعلومة (نظام علم، إبشر، إدخال يدوي)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>ORGANIZATION_MEMBERS <span class="ar-title">(سجل منسوبي المنشأة)</span></h3>
+        <span class="tag tag-warn">سجل دائم للموظفين والتابعين</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للعضو</td></tr>
+              <tr><td><span class="col-name">OrganizationPartyId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف المنشأة القانونية</td></tr>
+              <tr><td><span class="col-name">PersonPartyId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف الشخص (الموظف أو التابع)</td></tr>
+              <tr><td><span class="col-name">SponsorMembershipId</span></td><td><span class="col-type">uuid</span></td><td>Nullable FK</td><td>معرف الموظف الكفيل للتابع</td></tr>
+              <tr><td><span class="col-name">Relationship</span></td><td><span class="col-type">string</span></td><td>Required</td><td>صلة القرابة (Employee, Spouse, Child)</td></tr>
+              <tr><td><span class="col-name">EmploymentNumber</span></td><td><span class="col-type">string</span></td><td>Nullable</td><td>الرقم الوظيفي لدى المنشأة</td></tr>
+              <tr><td><span class="col-name">Status</span></td><td><span class="col-type">string</span></td><td>Required</td><td>حالة العضو بالمنشأة (Active, Terminated)</td></tr>
+              <tr><td><span class="col-name">EffectiveFrom</span></td><td><span class="col-type">datetime</span></td><td>Required</td><td>تاريخ الالتحاق</td></tr>
+              <tr><td><span class="col-name">EffectiveTo</span></td><td><span class="col-type">datetime</span></td><td>Nullable</td><td>تاريخ انتهاء العلاقة العمالية</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Group 4 -->
+    <h2 class="section-title">
+      4. المدفوعات والأقساط والتحصيل (Billing & Payments)
+      <span class="pill">3 كيانات</span>
+    </h2>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>PAYMENT_ATTEMPTS <span class="ar-title">(محاولات الدفع لدى البوابة)</span></h3>
+        <span class="tag tag-critical">منع الدفع المزدوج وتتبع الفشل</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد لمحاولة الدفع</td></tr>
+              <tr><td><span class="col-name">PaymentId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف عملية الدفع المنطقية</td></tr>
+              <tr><td><span class="col-name">AttemptNumber</span></td><td><span class="col-type">int</span></td><td>Required</td><td>رقم المحاولة (1، 2، 3)</td></tr>
+              <tr><td><span class="col-name">Status</span></td><td><span class="col-type">string</span></td><td>Required</td><td>نتيجة المحاولة (Pending, Captured, Declined)</td></tr>
+              <tr><td><span class="col-name">FailureCode</span></td><td><span class="col-type">string</span></td><td>Nullable</td><td>كود الخطأ الصادر من البنك/البوابة</td></tr>
+              <tr><td><span class="col-name">IdempotencyKey</span></td><td><span class="col-type">string</span></td><td><span class="col-key key-uk">UK</span></td><td>مفتاح فريد لمنع سحب المبلغ مرتين لنفس المحاولة</td></tr>
+              <tr><td><span class="col-name">AttemptedAt</span></td><td><span class="col-type">datetime</span></td><td>Required</td><td>وقت وتاريخ المحاولة بدقة</td></tr>
+              <tr><td><span class="col-name">ProviderResponse</span></td><td><span class="col-type">json</span></td><td>Required</td><td>الاستجابة الخام الكاملة من البوابة للتدقيق</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>INSTALLMENTS <span class="ar-title">(أقساط الفواتير)</span></h3>
+        <span class="tag tag-warn">جدولة السداد</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للقسط</td></tr>
+              <tr><td><span class="col-name">InvoiceId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف الفاتورة التابع لها</td></tr>
+              <tr><td><span class="col-name">Sequence</span></td><td><span class="col-type">int</span></td><td>Required</td><td>ترتيب القسط (1، 2، 3...)</td></tr>
+              <tr><td><span class="col-name">DueDate</span></td><td><span class="col-type">date</span></td><td>Required</td><td>تاريخ استحقاق السداد</td></tr>
+              <tr><td><span class="col-name">Amount</span></td><td><span class="col-type">decimal</span></td><td>Required</td><td>قيمة القسط المطلوب</td></tr>
+              <tr><td><span class="col-name">Status</span></td><td><span class="col-type">string</span></td><td>Required</td><td>حالة القسط (Pending, Paid, Overdue)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>INSURANCE_COLLECTIONS <span class="ar-title">(تحصيلات التأمين لعقود التأجير)</span></h3>
+        <span class="tag tag-warn">حساب صافي التأمين للبنك</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد لسجل التحصيل</td></tr>
+              <tr><td><span class="col-name">FinancingContractId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف عقد التمويل</td></tr>
+              <tr><td><span class="col-name">CollectionDate</span></td><td><span class="col-type">date</span></td><td>Required</td><td>تاريخ التحصيل الفعلي</td></tr>
+              <tr><td><span class="col-name">Amount</span></td><td><span class="col-type">decimal</span></td><td>Required</td><td>المبلغ المحصل من العميل</td></tr>
+              <tr><td><span class="col-name">Source</span></td><td><span class="col-type">string</span></td><td>Required</td><td>طريقة التحصيل (Installment, Settlement, Adjustment)</td></tr>
+              <tr><td><span class="col-name">ExternalReference</span></td><td><span class="col-type">string</span></td><td>Nullable</td><td>المرجع في النظام المحاسبي لجهة التمويل</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Group 5 -->
+    <h2 class="section-title">
+      5. تفاصيل التغطيات وسنوات التأجير (Coverages & Lease Years)
+      <span class="pill">5 كيانات</span>
+    </h2>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>QUOTE_OFFER_COVERAGES <span class="ar-title">(تغطيات عروض التسعير)</span></h3>
+        <span class="tag tag-success">تفصيل التغطيات من API</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للتغطية بالعرض</td></tr>
+              <tr><td><span class="col-name">QuoteOfferId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف العرض التابع له</td></tr>
+              <tr><td><span class="col-name">ExternalCode</span></td><td><span class="col-type">string</span></td><td>Required</td><td>الكود المرجعي للتغطية لدى شركة التأمين</td></tr>
+              <tr><td><span class="col-name">Name</span></td><td><span class="col-type">string</span></td><td>Required</td><td>اسم التغطية (مثلاً: تغطية الزجاج، الكوارث)</td></tr>
+              <tr><td><span class="col-name">LimitValue</span></td><td><span class="col-type">string</span></td><td>Nullable</td><td>الحد الأقصى للتعويض</td></tr>
+              <tr><td><span class="col-name">IsIncluded</span></td><td><span class="col-type">bool</span></td><td>Required</td><td>هل التغطية مشمولة مجاناً؟</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>POLICY_COVERAGES <span class="ar-title">(تغطيات الوثيقة المصدرة)</span></h3>
+        <span class="tag tag-success">تغطيات مجمدة مع الوثيقة</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للتغطية بالوثيقة</td></tr>
+              <tr><td><span class="col-name">PolicyId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف الوثيقة الصادرة</td></tr>
+              <tr><td><span class="col-name">ExternalCode</span></td><td><span class="col-type">string</span></td><td>Required</td><td>كود التغطية المعتمد</td></tr>
+              <tr><td><span class="col-name">Name</span></td><td><span class="col-type">string</span></td><td>Required</td><td>اسم التغطية الرسمي</td></tr>
+              <tr><td><span class="col-name">Premium</span></td><td><span class="col-type">decimal</span></td><td>Required</td><td>القسط المالي المحتسب لهذه التغطية</td></tr>
+              <tr><td><span class="col-name">LimitValue</span></td><td><span class="col-type">string</span></td><td>Nullable</td><td>حد التعويض الأقصى المعتمد</td></tr>
+              <tr><td><span class="col-name">DeductibleValue</span></td><td><span class="col-type">string</span></td><td>Nullable</td><td>مبلغ التحمل المطبق على هذه التغطية</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>POLICY_ADDONS <span class="ar-title">(إضافات الوثيقة السارية)</span></h3>
+        <span class="tag tag-success">خدمات إضافية</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للإضافة</td></tr>
+              <tr><td><span class="col-name">PolicyId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف الوثيقة التابعة لها</td></tr>
+              <tr><td><span class="col-name">ExternalCode</span></td><td><span class="col-type">string</span></td><td>Required</td><td>كود الخدمة الإضافية</td></tr>
+              <tr><td><span class="col-name">Name</span></td><td><span class="col-type">string</span></td><td>Required</td><td>اسم الخدمة (سيارة بديلة، مساعدة على الطريق)</td></tr>
+              <tr><td><span class="col-name">EndorsementId</span></td><td><span class="col-type">uuid</span></td><td>Nullable FK</td><td>معرف الملحق إذا تم شراؤها بعد الإصدار</td></tr>
+              <tr><td><span class="col-name">Premium</span></td><td><span class="col-type">decimal</span></td><td>Required</td><td>سعر الخدمة الإضافية</td></tr>
+              <tr><td><span class="col-name">EffectiveFrom</span></td><td><span class="col-type">datetime</span></td><td>Required</td><td>تاريخ بدء التغطية</td></tr>
+              <tr><td><span class="col-name">EffectiveTo</span></td><td><span class="col-type">datetime</span></td><td>Required</td><td>تاريخ انتهاء التغطية</td></tr>
+              <tr><td><span class="col-name">Status</span></td><td><span class="col-type">string</span></td><td>Required</td><td>حالة الخدمة (Active, Cancelled)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>FUNDER_INSURERS <span class="ar-title">(شركات تأمين جهة التمويل)</span></h3>
+        <span class="tag tag-warn">تخصيص الشركات لكل بنك</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد</td></tr>
+              <tr><td><span class="col-name">TenantId</span></td><td><span class="col-type">uuid</span></td><td>Required</td><td>معرف مستأجر جهة التمويل (ABP Tenant)</td></tr>
+              <tr><td><span class="col-name">FunderId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف جهة التمويل</td></tr>
+              <tr><td><span class="col-name">InsurerId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف شركة التأمين</td></tr>
+              <tr><td><span class="col-name">IsEnabled</span></td><td><span class="col-type">bool</span></td><td>Required</td><td>هل الشركة مفعلة لتقديم أسعار لهذه الجهة؟</td></tr>
+              <tr><td><span class="col-name">SortOrder</span></td><td><span class="col-type">int</span></td><td>Required</td><td>أولوية وترتيب ظهور الشركة في العروض</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>LEASE_OFFER_YEARS <span class="ar-title">(تفصيل سنوات عرض التأجير)</span></h3>
+        <span class="tag tag-critical">أساسي لعقود 1-5 سنوات</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للسنة</td></tr>
+              <tr><td><span class="col-name">QuoteOfferId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف عرض التأجير التابع له</td></tr>
+              <tr><td><span class="col-name">InsuranceYear</span></td><td><span class="col-type">int</span></td><td>Required</td><td>رقم السنة التأمينية (1، 2، 3، 4، 5)</td></tr>
+              <tr><td><span class="col-name">SumInsured</span></td><td><span class="col-type">decimal</span></td><td>Required</td><td>القيمة التأمينية للمركبة في هذه السنة</td></tr>
+              <tr><td><span class="col-name">PremiumBeforeNcd</span></td><td><span class="col-type">decimal</span></td><td>Required</td><td>القسط الأساسي قبل خصم عدم وجود مطالبات</td></tr>
+              <tr><td><span class="col-name">NcdAmount</span></td><td><span class="col-type">decimal</span></td><td>Required</td><td>قيمة خصم نجم (NCD) لهذه السنة</td></tr>
+              <tr><td><span class="col-name">PremiumAfterNcd</span></td><td><span class="col-type">decimal</span></td><td>Required</td><td>القسط الصافي بعد الخصم</td></tr>
+              <tr><td><span class="col-name">TaxAmount</span></td><td><span class="col-type">decimal</span></td><td>Required</td><td>ضريبة القيمة المضافة للسنة</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Group 6 -->
+    <h2 class="section-title">
+      6. الدعم الفني، العمولات، والحملات الترويجية (Support, Commercial & Promotions)
+      <span class="pill">5 كيانات</span>
+    </h2>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>SUPPORT_TICKETS <span class="ar-title">(تذاكر الدعم والشكاوى)</span></h3>
+        <span class="tag tag-warn">خدمة العملاء والعمليات</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للتذكرة</td></tr>
+              <tr><td><span class="col-name">TenantId</span></td><td><span class="col-type">uuid</span></td><td>Nullable</td><td>معرف المستأجر إن وجدت</td></tr>
+              <tr><td><span class="col-name">Number</span></td><td><span class="col-type">string</span></td><td><span class="col-key key-uk">UK</span></td><td>رقم التذكرة التسلسلي</td></tr>
+              <tr><td><span class="col-name">CustomerPartyId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف العميل صاحب التذكرة</td></tr>
+              <tr><td><span class="col-name">InsuranceType</span></td><td><span class="col-type">string</span></td><td>Nullable</td><td>نوع التأمين (Motor, Medical, LeasedVehicle)</td></tr>
+              <tr><td><span class="col-name">TicketType</span></td><td><span class="col-type">string</span></td><td>Required</td><td>تصنيف المشكلة (اعتراض سعر، مشكلة وثيقة، عطل دفع)</td></tr>
+              <tr><td><span class="col-name">ReferenceType</span></td><td><span class="col-type">string</span></td><td>Nullable</td><td>نوع الكيان المرجعي (Policy, QuoteRequest, Claim)</td></tr>
+              <tr><td><span class="col-name">ReferenceId</span></td><td><span class="col-type">uuid</span></td><td>Nullable</td><td>معرف الكيان المرجعي</td></tr>
+              <tr><td><span class="col-name">Priority</span></td><td><span class="col-type">string</span></td><td>Required</td><td>الأولوية (Low, Medium, High, Urgent)</td></tr>
+              <tr><td><span class="col-name">Status</span></td><td><span class="col-type">string</span></td><td>Required</td><td>حالة التذكرة (Open, InReview, Resolved, Closed)</td></tr>
+              <tr><td><span class="col-name">OwnerIdentityUserId</span></td><td><span class="col-type">uuid</span></td><td>Nullable</td><td>معرف موظف الدعم المسؤول</td></tr>
+              <tr><td><span class="col-name">OpenedAt</span></td><td><span class="col-type">datetime</span></td><td>Required</td><td>تاريخ ووقت الفتح</td></tr>
+              <tr><td><span class="col-name">ClosedAt</span></td><td><span class="col-type">datetime</span></td><td>Nullable</td><td>تاريخ ووقت الإغلاق</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>TICKET_ACTIVITIES <span class="ar-title">(أنشطة وتحديثات التذاكر)</span></h3>
+        <span class="tag tag-warn">سجل الردود والتعليقات</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للنشاط</td></tr>
+              <tr><td><span class="col-name">TicketId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف التذكرة التابع لها</td></tr>
+              <tr><td><span class="col-name">ActivityType</span></td><td><span class="col-type">string</span></td><td>Required</td><td>نوع النشاط (Message, StatusChange, Assignment)</td></tr>
+              <tr><td><span class="col-name">ActorIdentityUserId</span></td><td><span class="col-type">uuid</span></td><td>Required</td><td>معرف المستخدم الذي أجرى النشاط</td></tr>
+              <tr><td><span class="col-name">Body</span></td><td><span class="col-type">text</span></td><td>Required</td><td>نص الرسالة أو التعليق</td></tr>
+              <tr><td><span class="col-name">CreatedAt</span></td><td><span class="col-type">datetime</span></td><td>Required</td><td>وقت تسجيل النشاط</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>PROMOTIONS <span class="ar-title">(الحملات الترويجية وأكواد الخصم)</span></h3>
+        <span class="tag tag-success">أكواد الخصم والكوبونات</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للحملة</td></tr>
+              <tr><td><span class="col-name">InsuranceType</span></td><td><span class="col-type">string</span></td><td>Nullable</td><td>نوع التأمين الساري عليه الخصم</td></tr>
+              <tr><td><span class="col-name">Code</span></td><td><span class="col-type">string</span></td><td><span class="col-key key-uk">UK</span></td><td>كود الكوبون التسويقي</td></tr>
+              <tr><td><span class="col-name">Name</span></td><td><span class="col-type">string</span></td><td>Required</td><td>اسم الحملة الإعلانية</td></tr>
+              <tr><td><span class="col-name">DiscountType</span></td><td><span class="col-type">string</span></td><td>Required</td><td>نوع الخصم (Percentage, FixedAmount)</td></tr>
+              <tr><td><span class="col-name">DiscountValue</span></td><td><span class="col-type">decimal</span></td><td>Required</td><td>قيمة الخصم</td></tr>
+              <tr><td><span class="col-name">UsageLimit</span></td><td><span class="col-type">int</span></td><td>Required</td><td>الحد الأقصى لمرات الاستخدام الإجمالي</td></tr>
+              <tr><td><span class="col-name">StartsAt</span></td><td><span class="col-type">datetime</span></td><td>Required</td><td>تاريخ بدء الحملة</td></tr>
+              <tr><td><span class="col-name">EndsAt</span></td><td><span class="col-type">datetime</span></td><td>Required</td><td>تاريخ انتهاء الحملة</td></tr>
+              <tr><td><span class="col-name">IsActive</span></td><td><span class="col-type">bool</span></td><td>Required</td><td>هل الحملة مفعلة؟</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>PROMOTION_REDEMPTIONS <span class="ar-title">(استخدامات الأكواد الترويجية)</span></h3>
+        <span class="tag tag-success">منع تكرار استخدام الكوبون</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد لسجل الاستخدام</td></tr>
+              <tr><td><span class="col-name">PromotionId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف كود الخصم</td></tr>
+              <tr><td><span class="col-name">QuoteRequestId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف طلب التسعير المطبق عليه الخصم</td></tr>
+              <tr><td><span class="col-name">PartyId</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-fk">FK</span></td><td>معرف العميل المستفيد</td></tr>
+              <tr><td><span class="col-name">DiscountAmount</span></td><td><span class="col-type">decimal</span></td><td>Required</td><td>المبلغ الفعلي المخصوم</td></tr>
+              <tr><td><span class="col-name">RedeemedAt</span></td><td><span class="col-type">datetime</span></td><td>Required</td><td>تاريخ ووقت الاستخدام</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="entity-card">
+      <div class="entity-header">
+        <h3>COMMISSION_RULES <span class="ar-title">(قواعد احتساب عمولات الوساطة)</span></h3>
+        <span class="tag tag-critical">دخل الوسيط التأميني</span>
+      </div>
+      <div class="entity-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Column (EN)</th><th>Type</th><th>Constraint</th><th>الاسم والوصف بالعربية (AR)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="col-name">Id</span></td><td><span class="col-type">uuid</span></td><td><span class="col-key key-pk">PK</span></td><td>المعرف الفريد للقاعدة</td></tr>
+              <tr><td><span class="col-name">InsuranceType</span></td><td><span class="col-type">string</span></td><td>Required</td><td>نوع التأمين (Motor, Medical, LeasedVehicle)</td></tr>
+              <tr><td><span class="col-name">InsurerId</span></td><td><span class="col-type">uuid</span></td><td>Nullable FK</td><td>معرف شركة التأمين (أو فارغ للنسبة العامة)</td></tr>
+              <tr><td><span class="col-name">Rate</span></td><td><span class="col-type">decimal</span></td><td>Required</td><td>نسبة عمولة الوساطة (مثلاً 0.1000 = 10%)</td></tr>
+              <tr><td><span class="col-name">EffectiveFrom</span></td><td><span class="col-type">datetime</span></td><td>Required</td><td>تاريخ بدء سريان الاتفاقية</td></tr>
+              <tr><td><span class="col-name">EffectiveTo</span></td><td><span class="col-type">datetime</span></td><td>Nullable</td><td>تاريخ انتهاء سريان الاتفاقية</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    <p>منصة ثقة تك (Thiqatak) للتأمين الإلكتروني — تقرير المقارنة المعمارية المعتمد لبيئة ABP Framework</p>
+  </footer>
+
+</body>
+</html>

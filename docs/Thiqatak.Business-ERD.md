@@ -43,6 +43,7 @@ erDiagram
         string BirthCalendar "nullable; person only"
         string Gender "nullable; person only"
         string Nationality "nullable; person only"
+        datetime PhoneConfirmedAt "nullable; person only"
         string Status
         string ConcurrencyStamp
     }
@@ -60,6 +61,8 @@ erDiagram
         string UnifiedNumber UK
         string CommercialRegistration
         string VatNumber
+        string GosiEstablishmentNumber
+        int GosiEmployeeCount
         string ActivityCode
         string SizeClass
     }
@@ -69,6 +72,9 @@ erDiagram
         uuid OrganizationPartyId FK, UK
         string Code UK
         string Subdomain UK
+        string RepairPolicy "agency or workshop by year"
+        int QuoteValidityDays
+        string LesseePortalPath
         string Status
     }
     PARTY_CONTACTS {
@@ -125,6 +131,7 @@ erDiagram
         uuid Id PK
         string Name
         string AvatarUrl
+        bool IsActive
     }
     QUOTE_REQUESTS {
         uuid Id PK
@@ -152,6 +159,8 @@ erDiagram
         decimal TaxTotal
         decimal GrandTotal
         int ResponseMilliseconds
+        bool IsInComparison
+        bool IsSelectable
         string DeclineReason
         json InsurerResponseSnapshot
     }
@@ -221,8 +230,11 @@ erDiagram
         string PolicyNumber UK
         string InsuranceType "Motor Medical LeasedVehicle"
         uuid InsurerId FK
-        uuid QuoteRequestId FK
+        uuid QuoteRequestId FK "nullable when issued from renewal"
+        uuid QuoteOfferId FK "nullable when issued from renewal"
+        uuid RenewalItemOfferId FK "nullable when issued from quote"
         string Status
+        string ChiStatus "nullable; medical only"
         date EffectiveFrom
         date EffectiveTo
         decimal Subtotal
@@ -298,10 +310,14 @@ erDiagram
         uuid Id PK
         uuid TenantId "external ABP tenant reference; nullable"
         string InvoiceNumber UK
+        string InvoiceType "Simplified Standard"
         uuid PolicyId FK "nullable before issuance"
         uuid BillToPartyId FK
         string Description
         string Status
+        uuid ZatcaUuid "nullable; ZATCA e-invoicing"
+        string ZatcaStatus "Pending Reported Cleared Rejected"
+        text QrCode "nullable; ZATCA QR"
         decimal Subtotal
         decimal TaxAmount
         decimal TotalAmount
@@ -312,8 +328,10 @@ erDiagram
         uuid Id PK
         uuid TenantId "external ABP tenant reference; nullable"
         string PaymentReference UK
-        uuid InvoiceId FK
+        uuid InvoiceId FK "nullable before invoice issuance"
+        uuid QuoteRequestId FK "nullable; before policy issuance"
         uuid PayerPartyId FK
+        string Provider "HyperPay Sadad Bank Tabby Tamara"
         string Method "Mada Card ApplePay Sadad Bank Tabby Tamara Credit"
         string Status
         decimal Amount
@@ -385,6 +403,7 @@ erDiagram
 ```mermaid
 erDiagram
     direction LR
+    VEHICLE_CATALOGS ||--o{ VEHICLES : maps
     VEHICLES ||--o{ VEHICLE_PARTY_ROLES : owned_or_used_by
     PARTIES ||--o{ VEHICLE_PARTY_ROLES : assigned_to
     QUOTE_REQUESTS ||--o| MOTOR_QUOTE_DETAILS : describes
@@ -394,11 +413,23 @@ erDiagram
     POLICIES ||--o{ POLICY_VEHICLES : covers
     VEHICLES ||--o{ POLICY_VEHICLES : insured_by
 
+    VEHICLE_CATALOGS {
+        uuid Id PK
+        string ElmCode UK
+        string NicMakeCode
+        string NicModelCode
+        string MakeNameArabic
+        string ModelNameArabic
+        bool IsActive
+    }
     VEHICLES {
         uuid Id PK
         uuid TenantId "external ABP tenant reference; nullable"
         string Make
         string Model
+        string ElmCode
+        string NicMakeCode
+        string NicModelCode
         string ExternalModelCode
         string SerialNumber UK
         string CustomsCardNumber UK
@@ -407,6 +438,7 @@ erDiagram
         int ModelYear
         string Color
         decimal MarketValue
+        string RemovalStatus "Active PendingInsurerConfirm Removed"
         string Status
     }
     VEHICLE_PARTY_ROLES {
@@ -421,7 +453,15 @@ erDiagram
     MOTOR_QUOTE_DETAILS {
         uuid QuoteRequestId PK, FK
         uuid VehicleId FK
-        uuid SellerPartyId FK "required for ownership transfer"
+        uuid SellerPartyId FK "nullable; if seller is a registered party"
+        string SellerNationalId "nullable; for ownership transfer"
+        string SellerSerialNumber "nullable; for ownership transfer"
+        string BuyerNationalId "nullable; for ownership transfer"
+        string BuyerBirthDateHijri "nullable; for ownership transfer"
+        string BuyerPhone "nullable; for ownership transfer"
+        string TransferRequestReference "nullable; Absher request reference"
+        string TransferStatus "nullable; Absher status"
+        datetime TransferCheckedAt "nullable; Absher check timestamp"
         string Purpose "New Transfer Renewal"
         string RegistrationType "Serial Customs"
         string CoverageType "Comprehensive TPL"
@@ -493,7 +533,9 @@ erDiagram
     MEDICAL_QUOTE_MEMBERS {
         uuid Id PK
         uuid MedicalQuoteRequestId FK
-        uuid OrganizationMemberId FK
+        uuid OrganizationMemberId FK "nullable if imported during quote"
+        uuid SponsorMemberId FK "nullable; sponsors dependent"
+        string Source "Gosi Masdar Manual"
         string ClassCode "external class code such as VIP A B C"
         decimal RatedPremium
         json RatingSnapshot
@@ -578,6 +620,10 @@ erDiagram
         date StartDate
         int TermYears
         decimal OriginalVehicleValue
+        decimal CollectedFromCustomer
+        decimal PaidToInsurer
+        bool B2bSynced
+        bool AddonsEnabled
         string Status
     }
     LEASE_QUOTE_DETAILS {
@@ -753,6 +799,18 @@ erDiagram
         datetime EffectiveFrom
         datetime EffectiveTo
     }
+    BUSINESS_AUDIT_LOGS {
+        uuid Id PK
+        uuid TenantId "external ABP tenant reference; nullable"
+        string EntityName
+        uuid EntityId
+        string ActionType "Create Update StatusChange Delete Export Approve"
+        uuid ActorIdentityUserId "external ABP Identity user reference"
+        string ActorName
+        json ChangesSnapshot
+        string ReferenceNumber
+        datetime PerformedAt
+    }
 ```
 
 ## Aggregate boundaries recommended for ABP
@@ -828,10 +886,10 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 | التصنيف | الكيانات |
 |---|---|
 | كيانات مشتركة بين جميع المسارات | `PARTIES`, `CLIENTS`, `ORGANIZATIONS`, `PARTY_CONTACTS`, `PARTY_ADDRESSES`, `PARTY_BANK_ACCOUNTS`, `IDENTITY_VERIFICATIONS`, `INSURERS`, `QUOTE_REQUESTS`, `QUOTE_OFFERS`, `QUOTE_OFFER_COVERAGES`, `QUOTE_OFFER_ADDONS`, `QUOTE_SIGNATURES`, `QUOTE_STATUS_HISTORY`, `POLICIES`, `POLICY_PARTIES`, `POLICY_COVERAGES`, `POLICY_ADDONS`, `POLICY_DOCUMENTS`, `POLICY_STATUS_HISTORY`, `POLICY_ENDORSEMENTS`, `ENDORSEMENT_LINES`, `INVOICES`, `PAYMENTS`, `PAYMENT_ATTEMPTS`, `INSTALLMENTS`, `REFUNDS`, `CLAIMS`, `CLAIM_DOCUMENTS`, `CLAIM_STATUS_HISTORY` |
-| تأمين المركبات | `VEHICLES`, `VEHICLE_PARTY_ROLES`, `MOTOR_QUOTE_DETAILS`, `MOTOR_QUOTE_DRIVERS`, `POLICY_VEHICLES` |
+| تأمين المركبات | `VEHICLE_CATALOGS`, `VEHICLES`, `VEHICLE_PARTY_ROLES`, `MOTOR_QUOTE_DETAILS`, `MOTOR_QUOTE_DRIVERS`, `POLICY_VEHICLES` |
 | التأمين الطبي | `ORGANIZATION_MEMBERS`, `MEDICAL_QUOTE_DETAILS`, `MEDICAL_QUOTE_MEMBERS`, `MEDICAL_DISCLOSURES`, `MEDICAL_POLICY_MEMBERS`, `MEDICAL_ENDORSEMENT_MEMBERS` |
 | المركبات المؤجرة | `FUNDERS`, `FUNDER_INSURERS`, `FINANCING_CONTRACTS`, `LEASE_QUOTE_DETAILS`, `LEASE_OFFER_YEARS`, `CONTRACT_POLICY_YEARS`, `INSURANCE_COLLECTIONS`, `RENEWAL_BATCHES`, `RENEWAL_ITEMS`, `RENEWAL_ITEM_OFFERS`, `LESSEE_SERVICE_PURCHASES` |
-| التشغيل المشترك | `OPERATIONAL_EXCEPTIONS`, `EXCEPTION_ACTIONS`, `SUPPORT_TICKETS`, `TICKET_ACTIVITIES`, `PROMOTIONS`, `PROMOTION_REDEMPTIONS`, `COMMISSION_RULES` |
+| التشغيل المشترك | `OPERATIONAL_EXCEPTIONS`, `EXCEPTION_ACTIONS`, `SUPPORT_TICKETS`, `TICKET_ACTIVITIES`, `PROMOTIONS`, `PROMOTION_REDEMPTIONS`, `COMMISSION_RULES`, `BUSINESS_AUDIT_LOGS` |
 
 ## Entity names and usage | أسماء الكيانات واستخدامها
 
@@ -868,6 +926,7 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 | `CLAIMS` | المطالبات | يمثل مطالبة تأمينية على وثيقة. |
 | `CLAIM_DOCUMENTS` | مستندات المطالبة | يحفظ مرفقات المطالبة. |
 | `CLAIM_STATUS_HISTORY` | سجل حالات المطالبة | يسجل مراحل معالجة المطالبة. |
+| `VEHICLE_CATALOGS` | قاموس المركبات | يربط كود علم بكودي مركز المعلومات الوطني لاعتماد طرازات المركبات ومطابقتها. |
 | `VEHICLES` | المركبات | يمثل مركبة واحدة داخل المنصة. |
 | `VEHICLE_PARTY_ROLES` | أدوار الأطراف على المركبات | يحدد المالك والمستخدم والمستأجر. |
 | `MOTOR_QUOTE_DETAILS` | تفاصيل تسعير المركبات | يحفظ بيانات طلب تأمين مركبة فردية. |
@@ -896,3 +955,4 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 | `PROMOTIONS` | الحملات الترويجية | يعرف حملات المنصة المحلية فقط. |
 | `PROMOTION_REDEMPTIONS` | استخدامات الحملات | يسجل تطبيق حملة على طلب تسعير. |
 | `COMMISSION_RULES` | قواعد العمولات | يحدد عمولة الوسيط حسب نوع التأمين والشركة. |
+| `BUSINESS_AUDIT_LOGS` | سجل تدقيق الأعمال | يسجل العمليات والإجراءات المهمة كدليل معتمد للتصدير للجهات التنظيمية. |
