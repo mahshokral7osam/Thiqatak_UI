@@ -548,7 +548,6 @@ erDiagram
     VEHICLES ||--o{ FINANCING_CONTRACTS : financed_asset
     QUOTE_REQUESTS ||--o| LEASE_QUOTE_DETAILS : describes
     FINANCING_CONTRACTS ||--o{ LEASE_QUOTE_DETAILS : originates_from
-    LEASE_QUOTE_DETAILS ||--|{ LEASE_YEAR_PROJECTIONS : projects
     QUOTE_OFFERS ||--o{ LEASE_OFFER_YEARS : prices_years
     FINANCING_CONTRACTS ||--o{ CONTRACT_POLICY_YEARS : insured_by
     POLICIES ||--o| CONTRACT_POLICY_YEARS : annual_policy
@@ -591,14 +590,6 @@ erDiagram
         decimal Deductible
         int NcdYears
         bool ManualIdentityPath
-    }
-    LEASE_YEAR_PROJECTIONS {
-        uuid Id PK
-        uuid LeaseQuoteRequestId FK
-        int InsuranceYear
-        decimal ProjectedSumInsured
-        string RepairType
-        decimal ProjectedPremium
     }
     LEASE_OFFER_YEARS {
         uuid Id PK
@@ -839,7 +830,7 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 | كيانات مشتركة بين جميع المسارات | `PARTIES`, `CLIENTS`, `ORGANIZATIONS`, `PARTY_CONTACTS`, `PARTY_ADDRESSES`, `PARTY_BANK_ACCOUNTS`, `IDENTITY_VERIFICATIONS`, `INSURERS`, `QUOTE_REQUESTS`, `QUOTE_OFFERS`, `QUOTE_OFFER_COVERAGES`, `QUOTE_OFFER_ADDONS`, `QUOTE_SIGNATURES`, `QUOTE_STATUS_HISTORY`, `POLICIES`, `POLICY_PARTIES`, `POLICY_COVERAGES`, `POLICY_ADDONS`, `POLICY_DOCUMENTS`, `POLICY_STATUS_HISTORY`, `POLICY_ENDORSEMENTS`, `ENDORSEMENT_LINES`, `INVOICES`, `PAYMENTS`, `PAYMENT_ATTEMPTS`, `INSTALLMENTS`, `REFUNDS`, `CLAIMS`, `CLAIM_DOCUMENTS`, `CLAIM_STATUS_HISTORY` |
 | تأمين المركبات | `VEHICLES`, `VEHICLE_PARTY_ROLES`, `MOTOR_QUOTE_DETAILS`, `MOTOR_QUOTE_DRIVERS`, `POLICY_VEHICLES` |
 | التأمين الطبي | `ORGANIZATION_MEMBERS`, `MEDICAL_QUOTE_DETAILS`, `MEDICAL_QUOTE_MEMBERS`, `MEDICAL_DISCLOSURES`, `MEDICAL_POLICY_MEMBERS`, `MEDICAL_ENDORSEMENT_MEMBERS` |
-| المركبات المؤجرة | `FUNDERS`, `FUNDER_INSURERS`, `FINANCING_CONTRACTS`, `LEASE_QUOTE_DETAILS`, `LEASE_YEAR_PROJECTIONS`, `LEASE_OFFER_YEARS`, `CONTRACT_POLICY_YEARS`, `INSURANCE_COLLECTIONS`, `RENEWAL_BATCHES`, `RENEWAL_ITEMS`, `RENEWAL_ITEM_OFFERS`, `LESSEE_SERVICE_PURCHASES` |
+| المركبات المؤجرة | `FUNDERS`, `FUNDER_INSURERS`, `FINANCING_CONTRACTS`, `LEASE_QUOTE_DETAILS`, `LEASE_OFFER_YEARS`, `CONTRACT_POLICY_YEARS`, `INSURANCE_COLLECTIONS`, `RENEWAL_BATCHES`, `RENEWAL_ITEMS`, `RENEWAL_ITEM_OFFERS`, `LESSEE_SERVICE_PURCHASES` |
 | التشغيل المشترك | `OPERATIONAL_EXCEPTIONS`, `EXCEPTION_ACTIONS`, `SUPPORT_TICKETS`, `TICKET_ACTIVITIES`, `PROMOTIONS`, `PROMOTION_REDEMPTIONS`, `COMMISSION_RULES` |
 
 ## Entity names and usage | أسماء الكيانات واستخدامها
@@ -891,7 +882,6 @@ Start as a modular monolith with one database and separate EF Core schemas per m
 | `FUNDER_INSURERS` | شركات تأمين جهة التمويل | يحدد الشركات المتاحة للجهة. |
 | `FINANCING_CONTRACTS` | عقود التمويل | يمثل عقد تمويل لمركبة ومستأجر. |
 | `LEASE_QUOTE_DETAILS` | تفاصيل تسعير التأجير | يحفظ بيانات تسعير عقد التأجير. |
-| `LEASE_YEAR_PROJECTIONS` | توقعات سنوات التأجير | يحفظ القيمة والتغطية المتوقعة لكل سنة. |
 | `LEASE_OFFER_YEARS` | سنوات عرض التأجير | يحفظ سعر كل سنة داخل العرض. |
 | `CONTRACT_POLICY_YEARS` | وثائق سنوات العقد | يربط كل سنة من العقد بوثيقتها. |
 | `INSURANCE_COLLECTIONS` | تحصيلات التأمين | يسجل مبالغ التأمين المحصلة مع العقد. |
