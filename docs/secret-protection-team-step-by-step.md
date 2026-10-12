@@ -1,31 +1,44 @@
-# Secret protection: team setup and production deployment
+# تطبيق تشفير أسرار الإنتاج خطوة بخطوة
 
-Use this guide for the encryption implementation in this solution. The developer prepares an encrypted file with the server's **public** certificate. The production API uses the matching **private** key on the server to read it. Secret values stay in local `appsettings.json` for local development; the published API gets them from the encrypted file.
+هذا دليل لتنفيذ نفس طريقة التشفير الموجودة في حل TheqaTech على مشروع جديد. الأوامر تستخدم أسماء ومسارات TheqaTech كمثال عملي؛ عند استخدامها لمشروع آخر غيّر اسم المشروع، رابط الموقع، ومسار السيرفر إلى قيم مشروعك.
 
-Run commands in **PowerShell** unless a step says **Command Prompt**. Every example below uses the real TheqaTech project names, server path, application ID, and certificate thumbprint. When another team uses this code, they change those values to theirs. Do not put real passwords or tokens in this guide, Git, a publish ZIP, or a command argument.
+**الفكرة ببساطة:** مسؤول السيرفر ينشئ شهادة ويعطي المطوّر الجزء العام منها (`.cer`). المطوّر يستخدمه لتشفير ملف الأسرار. التطبيق على السيرفر يستخدم الجزء الخاص من نفس الشهادة لفك التشفير عند التشغيل. إعدادات التطوير المحلية تظل كما هي. **لا ترسل ملف الأسرار غير المشفّر إلى السيرفر.**
 
-**Current TheqaTech production is already set up:** its certificate thumbprint is `5ACECE1EBA79CEF5FA7118165CB7B93AD319138E` and its encrypted file is at `C:\inetpub\vhosts\thiqatech.com.sa\api.thiqatech.com.sa\host.secrets.production.enc`. Do not create another certificate for that working site. Steps 2 and 3 are for a new server or project; the later steps also explain future updates to this site.
+نفّذ الأوامر في **PowerShell**، إلا إذا كتبنا **Command Prompt**. ابدأ أوامر المطوّر من مجلد الحل `D:\workGit\TheqaTech`.
 
-## 1. Connect a new host project to the shared code (developer, once per project)
+## 1. اربط التطبيق بمشروع التشفير — المطوّر
 
-The existing API and DbMigrator already do this. For another project in the solution:
-
-1. Add a project reference to `src/Al7.TheqaTech.SecretProtection/Al7.TheqaTech.SecretProtection.csproj` in each executable that needs the secrets.
-2. In startup, add `using Al7.TheqaTech.SecretProtection;` and call `config.AddTheqaTechProtectedSecrets()` in `ConfigureAppConfiguration`, as shown in [API Program.cs](../src/Al7.TheqaTech.HttpApi.Host/Program.cs) and [DbMigrator Program.cs](../src/Al7.TheqaTech.DbMigrator/Program.cs).
-3. Add the new application ID and its **allowed** and **required** configuration keys in [ProtectedSecretCatalog.cs](../src/Al7.TheqaTech.SecretProtection/ProtectedSecretCatalog.cs). The CLI rejects unknown IDs and keys. This is a code change, not a configuration setting.
-4. Keep local secrets in the new project's local `appsettings.json`. Publish a separate base `appsettings.json` without secrets, following [the API project file](../src/Al7.TheqaTech.HttpApi.Host/Al7.TheqaTech.HttpApi.Host.csproj) and [appsettings.publish.json](../src/Al7.TheqaTech.HttpApi.Host/appsettings.publish.json). Add a production configuration with `SecretProtection` enabled (step 6).
-
-The command for item 1 with **TheqaTech's actual project paths** is below. The reference is already present in this branch, so the TheqaTech team does not need to run it again. Another team changes the first path to its own host project:
+أضف مرجع مشروع التشفير للتطبيق وأداة ترحيل قاعدة البيانات:
 
 ```powershell
 dotnet add '.\src\Al7.TheqaTech.HttpApi.Host\Al7.TheqaTech.HttpApi.Host.csproj' reference '.\src\Al7.TheqaTech.SecretProtection\Al7.TheqaTech.SecretProtection.csproj'
+dotnet add '.\src\Al7.TheqaTech.DbMigrator\Al7.TheqaTech.DbMigrator.csproj' reference '.\src\Al7.TheqaTech.SecretProtection\Al7.TheqaTech.SecretProtection.csproj'
 ```
 
-For **the existing TheqaTech API**, use application ID `TheqaTech.HttpApi.Host` and the commands below without changing the catalog. Its protected keys are `ConnectionStrings:Default`, `AuthServer:CertificatePassPhrase`, `StringEncryption:DefaultPassPhrase`, `Swagger:Password`, `Firebase:CredentialsJson`, `HyperPay:AccessToken`, `HyperSplit:Password`, `HyperSplit:NotificationKey`, and `SiteAccess:Turnstile:SecretKey`. The first five are currently required to be nonempty. Firebase setup is outside this guide, but **do not remove its required key** from the payload unless you change the catalog and the API code; an unused placeholder only allows startup and will not make Firebase calls work. Optional keys may be omitted.
+في `Program.cs` لكل تطبيق، أضف `using Al7.TheqaTech.SecretProtection;` ثم استدعِ `config.AddTheqaTechProtectedSecrets()` داخل `ConfigureAppConfiguration`. افتح المثالين الموجودين في الحل:
 
-## 2. IT creates the certificate on the production Windows server (once)
+```powershell
+notepad '.\src\Al7.TheqaTech.HttpApi.Host\Program.cs'
+notepad '.\src\Al7.TheqaTech.DbMigrator\Program.cs'
+```
 
-Open **PowerShell as Administrator** on the server. Create the folder *before* exporting. Run these lines in order:
+في مشروع آخر، سجّل اسم التطبيق والمفاتيح المسموحة والمطلوبة في [ProtectedSecretCatalog.cs](../src/Al7.TheqaTech.SecretProtection/ProtectedSecretCatalog.cs). اسم تطبيق هذا المثال هو `TheqaTech.HttpApi.Host`. أداة التشفير ترفض اسم تطبيق أو مفتاح غير مسجل.
+
+## 2. جهّز إعدادات النشر — المطوّر
+
+اترك أسرار التطوير في `appsettings.json` المحلي. أنشئ ملف إعدادات للنشر بدون قيم الأسرار، مثل `appsettings.publish.json`. اضبط ملف `.csproj` لكي ينشر هذا الملف باسم `appsettings.json` **ولا ينشر الملف المحلي**. افتح أمثلة TheqaTech:
+
+```powershell
+notepad '.\src\Al7.TheqaTech.HttpApi.Host\appsettings.publish.json'
+notepad '.\src\Al7.TheqaTech.HttpApi.Host\Al7.TheqaTech.HttpApi.Host.csproj'
+notepad '.\src\Al7.TheqaTech.DbMigrator\Al7.TheqaTech.DbMigrator.csproj'
+```
+
+مهم: ملف نشر الـ API لا يحتوي كلمات مرور أو tokens. ملف نشر DbMigrator لا يحتوي `appsettings.json` المحلي أيضًا. القيم العادية، مثل روابط المواقع والمفاتيح العامة، تظل في الإعدادات.
+
+## 3. أنشئ شهادة التشفير — مسؤول السيرفر IT
+
+افتح **PowerShell كمسؤول** على Windows Server، ونفّذ الأوامر **بالترتيب**:
 
 ```powershell
 New-Item -ItemType Directory -Path 'C:\SecureWork' -Force | Out-Null
@@ -35,31 +48,21 @@ Export-Certificate -Cert $cert -FilePath 'C:\SecureWork\host-public.cer'
 $cert.Thumbprint
 ```
 
-IT sends the resulting `host-public.cer` file and the printed thumbprint to the developer through the approved channel. **Only the public `.cer` leaves the server.** The private key stays in `LocalMachine\My`. The thumbprint is an identifier, not a password. Do not reuse the API's `openiddict.pfx`.
+أرسل للمطوّر **الملف `host-public.cer` والبصمة المطبوعة فقط**. لا ترسل المفتاح الخاص ولا ملف `.pfx`. البصمة ستختلف في كل مرة تُنشأ فيها شهادة جديدة؛ استخدم البصمة الناتجة من هذا الأمر في الخطوة 7.
 
-IT can check the certificate later without creating another one:
+## 4. امنح التطبيق حق قراءة المفتاح الخاص — مسؤول السيرفر IT
 
-```powershell
-$thumbprint = '5ACECE1EBA79CEF5FA7118165CB7B93AD319138E'
-Get-Item "Cert:\LocalMachine\My\$thumbprint" | Select-Object Thumbprint, HasPrivateKey
-```
-
-## 3. IT grants the application access to the private key (once)
-
-Run `certlm.msc` on the server. Open **Personal > Certificates**, find the TheqaTech certificate by thumbprint, right click it, choose **All Tasks > Manage Private Keys**, then grant **Read** to the actual Windows account running the TheqaTech API. IT gets this account from the site's IIS/Plesk application pool settings; its exact name is not recorded in this repository. If DbMigrator will run on the server, also grant **Read** to the Windows account that runs it. Do not grant `Everyone`.
-
-The API and DbMigrator also need **Read** on the encrypted file. After the file exists (step 8), IT can grant it with:
+افتح مدير الشهادات:
 
 ```powershell
-$apiAccount = Read-Host 'Enter the exact TheqaTech API Windows account shown in IIS/Plesk'
-icacls 'C:\inetpub\vhosts\thiqatech.com.sa\api.thiqatech.com.sa\host.secrets.production.enc' /grant "${apiAccount}:R"
+certlm.msc
 ```
 
-For an IIS `ApplicationPoolIdentity`, enter `IIS AppPool\` followed by the actual pool name. For a custom identity, enter that Windows account. Grant file Read to the DbMigrator account too if it runs on the server. The application account does not need Write permission.
+اذهب إلى **Personal → Certificates**، وابحث عن الشهادة بالبصمة من الخطوة 3. اضغط باليمين **All Tasks → Manage Private Keys**، ثم أضف حساب تشغيل تطبيق الـ API بصلاحية **Read**. اعرف اسم الحساب الحقيقي من إعدادات Application Pool في IIS/Plesk. إذا ستشغّل DbMigrator على السيرفر، أضف حساب تشغيله بصلاحية **Read** أيضًا. لا تضف `Everyone`.
 
-## 4. Developer prepares the plaintext payload locally
+## 5. جهّز ملف الأسرار على جهاز المطوّر
 
-From the **solution root**, create a private working folder and copy the example:
+انسخ المثال خارج مجلد Git، ثم افتحه واملأ قيم الإنتاج:
 
 ```powershell
 New-Item -ItemType Directory -Path 'C:\SecureWork' -Force | Out-Null
@@ -67,38 +70,50 @@ Copy-Item -LiteralPath '.\docs\secret-protection-payload.example.json' -Destinat
 notepad 'C:\SecureWork\production-secrets.json'
 ```
 
-For the existing API, replace the example values with the actual production secrets. For another project, make a JSON file with only that project's keys from `ProtectedSecretCatalog.cs`; the TheqaTech example will not match it. Extra keys are rejected. Keep the current `StringEncryption:DefaultPassPhrase` if the database already contains ABP encrypted settings. Keep this plaintext file outside the repository and the website. Do not send it to IT. Check JSON syntax without displaying the values:
+ضع مثلًا اتصال قاعدة البيانات، كلمة مرور شهادة OpenIddict، `StringEncryption:DefaultPassPhrase`، كلمة مرور Swagger، و`HyperPay:AccessToken` و`SiteAccess:Turnstile:SecretKey` عند استخدامهما. **لا تغيّر `StringEncryption:DefaultPassPhrase` لقاعدة بيانات فيها بيانات مشفّرة بالفعل.** التنفيذ الحالي يشترط أيضًا وجود قيمة غير فارغة لـ `Firebase:CredentialsJson` حتى لو لم تستخدم Firebase الآن.
+
+تأكد أن صيغة JSON صحيحة بدون عرض القيم:
 
 ```powershell
 Get-Content 'C:\SecureWork\production-secrets.json' -Raw | ConvertFrom-Json | Out-Null
 ```
 
-## 5. Developer builds the encryption CLI and creates the encrypted file
+## 6. شفّر الملف على جهاز المطوّر
 
-Put IT's `host-public.cer` at `C:\SecureWork\host-public.cer`. From the **solution root**, publish the CLI:
+احفظ `host-public.cer` الذي أرسله IT في `C:\SecureWork\host-public.cer`. ابنِ أداة التشفير:
 
 ```powershell
+([System.Security.Cryptography.X509Certificates.X509Certificate2]::new('C:\SecureWork\host-public.cer')).Thumbprint
 dotnet publish '.\src\Al7.TheqaTech.SecretProtection.Cli\Al7.TheqaTech.SecretProtection.Cli.csproj' -c Release -o 'C:\SecureWork\secret-cli'
 ```
 
-Open **Command Prompt (`cmd.exe`)** for the next command. CMD's `<` passes the JSON file to the CLI as bytes. Change `--application` if step 1 registered a different project ID:
+تأكد أن البصمة المطبوعة هنا هي نفس البصمة التي أرسلها IT في الخطوة 3. لا تستخدم ملف `.cer` قديمًا من تجربة أخرى.
+
+افتح **Command Prompt (`cmd.exe`)** ونفّذ هذا الأمر؛ علامة `<` تقرأ الأسرار من الملف، فلا تظهر كلمات المرور داخل الأمر:
 
 ```cmd
 dotnet "C:\SecureWork\secret-cli\Al7.TheqaTech.SecretProtection.Cli.dll" encrypt --certificate "C:\SecureWork\host-public.cer" --application "TheqaTech.HttpApi.Host" --environment "Production" --output "C:\SecureWork\host.secrets.production.enc" < "C:\SecureWork\production-secrets.json"
 ```
 
-Success prints `Encrypted secrets file written.` The `.enc` file is the file to upload. The public `.cer` encrypts; the developer does not need the server's private key. Each encryption creates a new encrypted file, even when the plaintext is unchanged.
-
-Check the file and record its hash in **PowerShell**:
+إذا نجح، ستظهر `Encrypted secrets file written.` افحص الملف وسجّل البصمة `SHA256` لمقارنتها على السيرفر:
 
 ```powershell
 Test-Path -LiteralPath 'C:\SecureWork\host.secrets.production.enc' -PathType Leaf
 (Get-FileHash -LiteralPath 'C:\SecureWork\host.secrets.production.enc' -Algorithm SHA256).Hash
 ```
 
-## 6. Set production configuration (developer)
+الملف الذي سترفعه هو `.enc` فقط، وليس `production-secrets.json`.
 
-Set these values in the **production** `appsettings.Production.json` for every process reading the file. Use the thumbprint from step 2 and the **exact destination path** from step 8. In JSON, write each Windows `\` as `\\`:
+## 7. اضبط `appsettings.Production.json` — المطوّر
+
+افتح ملف إنتاج الـ API وملف إنتاج DbMigrator:
+
+```powershell
+notepad '.\src\Al7.TheqaTech.HttpApi.Host\appsettings.Production.json'
+notepad '.\src\Al7.TheqaTech.DbMigrator\appsettings.Production.json'
+```
+
+ضع نفس قسم `SecretProtection` في الملفين. هذا مثال بمسار TheqaTech؛ **استبدل البصمة الظاهرة ببصمة الشهادة الجديدة من الخطوة 3**:
 
 ```json
 {
@@ -114,45 +129,47 @@ Set these values in the **production** `appsettings.Production.json` for every p
 }
 ```
 
-The existing API and DbMigrator production files are [here](../src/Al7.TheqaTech.HttpApi.Host/appsettings.Production.json) and [here](../src/Al7.TheqaTech.DbMigrator/appsettings.Production.json). Both use the same application ID and encrypted file. For another project, all four values must match its own encrypted file: application ID, environment, thumbprint, and file path. Keep the published base `appsettings.json` free of plaintext protected secrets. Ordinary values such as URLs and public site keys stay in configuration. Set production payment URLs and entity IDs there if the project is taking live payments; the access token stays in the encrypted payload.
+**مهم:** هذا القسم يُضاف إلى بقية إعدادات الملف، ولا تستبدل محتوى الملف كله بهذا المثال. في JSON نكتب `\\` لكل `\` في مسار Windows. يجب أن يتطابق اسم التطبيق و`Production` ومسار الملف وبصمة الشهادة مع الملف المشفّر.
 
-## 7. Publish the applications (developer)
-
-From the solution root, use **new empty output folders** for each release. Replace the project paths for another host:
+بعد كتابة البصمة في الملفين، تأكد أنها تطابق الشهادة التي ستشفّر بها:
 
 ```powershell
-dotnet publish '.\src\Al7.TheqaTech.HttpApi.Host\Al7.TheqaTech.HttpApi.Host.csproj' -c Release -o 'C:\SecureWork\publish-api-new'
-dotnet publish '.\src\Al7.TheqaTech.DbMigrator\Al7.TheqaTech.DbMigrator.csproj' -c Release -o 'C:\SecureWork\publish-migrator-new'
+$publicCert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new('C:\SecureWork\host-public.cer')
+$apiThumbprint = (Get-Content '.\src\Al7.TheqaTech.HttpApi.Host\appsettings.Production.json' -Raw | ConvertFrom-Json).SecretProtection.CertificateThumbprint
+$migratorThumbprint = (Get-Content '.\src\Al7.TheqaTech.DbMigrator\appsettings.Production.json' -Raw | ConvertFrom-Json).SecretProtection.CertificateThumbprint
+if ($apiThumbprint -ne $publicCert.Thumbprint -or $migratorThumbprint -ne $publicCert.Thumbprint) { throw 'بصمة الشهادة لا تطابق إعدادات الإنتاج' }
 ```
 
-Check the API publish folder before sending it to IT:
+## 8. انشر الـ API وDbMigrator — المطوّر
+
+انشر كل تطبيق في **مجلد جديد فارغ**:
 
 ```powershell
-Test-Path 'C:\SecureWork\publish-api-new\appsettings.json'
-Test-Path 'C:\SecureWork\publish-api-new\appsettings.secrets.json'
-Test-Path 'C:\SecureWork\publish-api-new\openiddict.pfx'
-Test-Path 'C:\SecureWork\publish-api-new\host.secrets.production.enc'
+dotnet publish '.\src\Al7.TheqaTech.HttpApi.Host\Al7.TheqaTech.HttpApi.Host.csproj' -c Release -o 'C:\SecureWork\publish-api'
+dotnet publish '.\src\Al7.TheqaTech.DbMigrator\Al7.TheqaTech.DbMigrator.csproj' -c Release -o 'C:\SecureWork\publish-migrator'
 ```
 
-Only the first check should be `True`. Open the published `appsettings.json` and verify protected values are blank or absent. Check that the published `web.config` blocks `.pfx` and `.enc`:
+افحص ناتج نشر الـ API:
 
 ```powershell
-Select-String -Path 'C:\SecureWork\publish-api-new\web.config' -Pattern 'fileExtension=".pfx" allowed="false"', 'fileExtension=".enc" allowed="false"'
+Test-Path 'C:\SecureWork\publish-api\appsettings.json'
+Test-Path 'C:\SecureWork\publish-api\appsettings.secrets.json'
+Test-Path 'C:\SecureWork\publish-api\openiddict.pfx'
+Test-Path 'C:\SecureWork\publish-api\host.secrets.production.enc'
+Select-String -Path 'C:\SecureWork\publish-api\web.config' -Pattern 'fileExtension=".pfx" allowed="false"', 'fileExtension=".enc" allowed="false"'
 ```
 
-Both lines must appear. Upload the **contents of the API publish folder** to the Plesk/IIS API site. Keep DbMigrator and the CLI outside the web root. `openiddict.pfx` and the `.enc` file are supplied separately.
+أول `Test-Path` فقط يجب أن يكون `True`، والباقي `False`. يجب أن يظهر سطران من `web.config` لمنع تنزيل `.pfx` و`.enc`. افتح `publish-api\appsettings.json` وتأكد أن قيم الأسرار فارغة أو غير موجودة. ارفع **محتويات** `publish-api` إلى موقع الـ API في Plesk. احتفظ بـ DbMigrator خارج مجلد الموقع.
 
-## 8. IT puts the encrypted file on the server
+## 9. ضع الملف المشفّر على السيرفر — مسؤول السيرفر IT
 
-IT first makes a staging folder on the server:
+أنشئ مجلدًا مؤقتًا على السيرفر:
 
 ```powershell
 New-Item -ItemType Directory -Path 'C:\SecureWork' -Force | Out-Null
 ```
 
-Transfer **only** `C:\SecureWork\host.secrets.production.enc` to `C:\SecureWork\host.secrets.production.enc` on the server using your team's approved file transfer. IT then copies it to the `FilePath` in step 6. For the current TheqaTech site, that path is `C:\inetpub\vhosts\thiqatech.com.sa\api.thiqatech.com.sa\host.secrets.production.enc`.
-
-On the server, IT checks the destination and compares its hash to the developer's hash from step 5:
+انقل `host.secrets.production.enc` من جهاز المطوّر إلى `C:\SecureWork` على السيرفر بوسيلة نقل الملفات المعتمدة، ثم نفّذ:
 
 ```powershell
 $file = 'C:\inetpub\vhosts\thiqatech.com.sa\api.thiqatech.com.sa\host.secrets.production.enc'
@@ -161,36 +178,39 @@ Test-Path -LiteralPath $file -PathType Leaf
 (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash
 ```
 
-The first result must be `True` and the hashes must match. Then apply the file permission from step 3. If `Test-Path` is `False`, fix the upload destination or the `FilePath` value before starting the API.
-
-## 9. IT starts the production API and runs migrations when needed
-
-In Plesk/IIS, set the API environment to `Production` (`ASPNETCORE_ENVIRONMENT=Production`) and recycle/start the site. Keep the existing `openiddict.pfx` in the API content root with restricted access; it is a different certificate. Delete plaintext secret files left by any old deployment, including `appsettings.secrets.json` and old files under `wwwroot`. Copying a new publish folder does not delete old files.
-
-If this release needs database changes, place the **DbMigrator publish folder outside the website**. Run it on the server under the Windows account granted certificate and file Read access in step 3:
+يجب أن تظهر `True`، وأن يطابق `SHA256` القيمة من الخطوة 6. امنح حساب تشغيل الـ API حق قراءة الملف. الأمر يسألك عن **اسم الحساب الحقيقي** بدل افتراض اسم Application Pool:
 
 ```powershell
-Set-Location 'C:\SecureWork\publish-migrator-new'
+$apiAccount = Read-Host 'اكتب حساب تشغيل TheqaTech API كما يظهر في IIS/Plesk'
+icacls 'C:\inetpub\vhosts\thiqatech.com.sa\api.thiqatech.com.sa\host.secrets.production.enc' /grant "${apiAccount}:R"
+```
+
+إذا شغّلت DbMigrator على السيرفر بحساب مختلف، امنح ذلك الحساب قراءة الملف أيضًا. ضَع `openiddict.pfx` في مجلد الـ API الرئيسي بصلاحيات محدودة؛ هذه شهادة مختلفة عن شهادة تشفير الأسرار. لا تضع أي ملف أسرار غير مشفّر داخل مجلد الموقع.
+
+## 10. شغّل التطبيق وافحصه — مسؤول السيرفر IT
+
+اضبط بيئة الـ API في Plesk/IIS على `ASPNETCORE_ENVIRONMENT=Production`. إذا توجد تغييرات قاعدة بيانات، ضع ملفات `publish-migrator` خارج مجلد الموقع، وخذ نسخة احتياطية من قاعدة البيانات، ثم شغّله بالحساب الذي حصل على صلاحيات الخطوتين 4 و9:
+
+```powershell
+Set-Location 'C:\SecureWork\publish-migrator'
 $env:DOTNET_ENVIRONMENT = 'Production'
 dotnet '.\Al7.TheqaTech.DbMigrator.dll'
 ```
 
-Back up the target database and confirm it is the intended database before running migrations. The existing developer workflow can still run DbMigrator locally from Visual Studio with its local settings; that is separate from this production command.
-
-## 10. Verify and update later
-
-On the server, confirm the production configuration points to the file actually uploaded:
+بعد ذلك شغّل أو أعد تشغيل موقع الـ API من Plesk/IIS. تأكد من المسار والبصمة اللذين يقرأهما التطبيق:
 
 ```powershell
 (Get-Content 'C:\inetpub\vhosts\thiqatech.com.sa\api.thiqatech.com.sa\appsettings.Production.json' -Raw | ConvertFrom-Json).SecretProtection | Format-List
 ```
 
-Then open the API, check the startup log for success, and test one operation that uses a protected secret (for example, database access). For later password or token changes: edit the local plaintext payload, rerun **step 5** with the same public `.cer`, upload the new `.enc`, compare hashes, and recycle the API. There is **no decryption command for the developer**; the application decrypts at startup using the server private key.
+جرّب فتح الـ API وعملية تصل إلى قاعدة البيانات. التطبيق يفك تشفير `.enc` **عند بدء التشغيل** باستخدام المفتاح الخاص على السيرفر؛ المطوّر لا يحتاج أمرًا لفك التشفير.
 
-| Error | Check first |
-| --- | --- |
-| `Protected secrets file is missing` | `FilePath` and `Test-Path` in step 8. |
-| `Protected secrets envelope was rejected` | Correct `.enc` hash, application ID, `Production` environment, certificate thumbprint, and required payload keys. |
-| Certificate/private key unavailable | Certificate in `LocalMachine\My` and private-key **Read** permission for the process account. |
+## 11. عند تغيير كلمة مرور أو token لاحقًا
 
-The official Windows/IIS references for IT are [New-SelfSignedCertificate](https://learn.microsoft.com/en-us/powershell/module/pki/new-selfsignedcertificate), [application pool identities](https://learn.microsoft.com/en-us/iis/manage/configuring-security/application-pool-identities), and [publishing ASP.NET Core to IIS](https://learn.microsoft.com/en-us/aspnet/core/tutorials/publish-to-iis).
+عدّل `C:\SecureWork\production-secrets.json` على جهاز المطوّر، وأعد تنفيذ أمر التشفير في الخطوة 6 باستخدام نفس `.cer`. ارفع ملف `.enc` الجديد، قارن `SHA256`، ثم أعد تشغيل الـ API. مثال أمر فحص الملف بعد التحديث:
+
+```powershell
+(Get-FileHash -LiteralPath 'C:\SecureWork\host.secrets.production.enc' -Algorithm SHA256).Hash
+```
+
+إذا ظهر خطأ `Protected secrets file is missing`، افحص المسار و`Test-Path`. إذا ظهر `Protected secrets envelope was rejected`، افحص البصمة، واسم التطبيق، و`Production`، وتطابق الملف المنقول.
